@@ -18,6 +18,19 @@ self.addEventListener('notificationclick', (event) => {
   const data = event.notification.data ?? {};
   const action = event.action;
 
+  if (data.action === 'weekly_review') {
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        if (clientList.length > 0) {
+          clientList[0].focus();
+        } else {
+          clients.openWindow('/insights');
+        }
+      })
+    );
+    return;
+  }
+
   if (data.action === 'morning_ping' && action === 'awake') {
     event.waitUntil(
       fetch('/api/wake/confirm', {

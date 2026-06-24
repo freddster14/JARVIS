@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { format, addMinutes } from 'date-fns';
 import { prisma } from '../lib/prisma.js';
 import { sendPushToAll } from '../services/push.js';
-import { generateEncouragement } from '../services/claude.js';
+import { generateEncouragement, generateWeeklyReview } from '../services/claude.js';
 
 export function startNotifierJob() {
   // Every minute: check for tasks starting in 30 min
@@ -112,22 +112,69 @@ export function startNotifierJob() {
     weekEnd.setDate(weekEnd.getDate() + 7);
 
     const tasks = await prisma.task.findMany();
+    const allItems = await prisma.scheduleItem.findMany({
+      where: { date: { gte: weekStart, lt: weekEnd } },
+    });
+
+    const taskStats: Array<{
+      name: string;
+      category: string | null;
+      weeklyGoal: number;
+      scheduled: number;
+      completed: number;
+      skipped: number;
+      goalMet: boolean;
+    }> = [];
 
     for (const task of tasks) {
-      const items = await prisma.scheduleItem.findMany({
-        where: { taskId: task.id, date: { gte: weekStart, lt: weekEnd } },
-      });
+      const items = allItems.filter((i) => i.taskId === task.id);
       if (items.length === 0) continue;
+
+      const completed = items.filter((i) => i.status === 'done').length;
+      const skipped = items.filter((i) => i.status === 'skipped').length;
 
       await prisma.completion.create({
         data: {
           taskId: task.id,
           weekStart,
           scheduled: items.length,
-          completed: items.filter((i) => i.status === 'done').length,
-          skipped: items.filter((i) => i.status === 'skipped').length,
+          completed,
+          skipped,
         },
       });
+
+      taskStats.push({
+        name: task.name,
+        category: task.category,
+        weeklyGoal: task.weeklyGoal,
+        scheduled: items.length,
+        completed,
+        skipped,
+        goalMet: completed >= task.weeklyGoal,
+      });
+    }
+
+    if (taskStats.length > 0) {
+      const totalCompleted = taskStats.reduce((s, t) => s + t.completed, 0);
+      const totalSkipped = taskStats.reduce((s, t) => s + t.skipped, 0);
+      const decided = totalCompleted + totalSkipped;
+
+      try {
+        const review = await generateWeeklyReview({
+          weekStart: format(weekStart, 'yyyy-MM-dd'),
+          tasks: taskStats,
+          overallCompletionRate: decided > 0 ? totalCompleted / decided : 0,
+        });
+
+        await sendPushToAll({
+          title: `JARVIS — ${review.headline}`,
+          body: review.summary,
+          tag: `weekly-review-${format(weekStart, 'yyyy-MM-dd')}`,
+          data: { action: 'weekly_review', weekStart: format(weekStart, 'yyyy-MM-dd') },
+        });
+      } catch (err) {
+        console.error('[JARVIS] Auto weekly review failed:', err);
+      }
     }
   });
 
