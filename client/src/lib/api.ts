@@ -64,6 +64,14 @@ export interface WeekProgress {
   tasks: TaskProgress[];
 }
 
+export interface TodayStats {
+  date: string;
+  done: number;
+  pending: number;
+  skipped: number;
+  streak: number;
+}
+
 export interface WeeklyReview {
   headline: string;
   summary: string;
@@ -157,6 +165,7 @@ export const api = {
   },
 
   stats: {
+    today: () => request<TodayStats>('/api/stats/today'),
     week: (weekStart: string) => request<WeekProgress>(`/api/stats/week?weekStart=${weekStart}`),
     history: (weeks = 8) => request<{ weeks: number; history: HistoryWeek[] }>(`/api/stats/history?weeks=${weeks}`),
   },

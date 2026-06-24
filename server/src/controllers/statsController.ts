@@ -121,3 +121,48 @@ export async function getHistory(req: Request, res: Response) {
 
   res.json({ weeks, history });
 }
+
+/**
+ * GET /api/stats/today
+ * Today's session counts + current daily completion streak.
+ */
+export async function getToday(_req: Request, res: Response) {
+  const now = new Date();
+  const todayStr = format(now, 'yyyy-MM-dd');
+  const todayStart = new Date(todayStr);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  const todayItems = await prisma.scheduleItem.findMany({
+    where: { date: { gte: todayStart, lt: todayEnd } },
+  });
+
+  const done = todayItems.filter((i) => i.status === 'done').length;
+  const pending = todayItems.filter((i) => i.status === 'pending' || i.status === 'rescheduled').length;
+  const skipped = todayItems.filter((i) => i.status === 'skipped').length;
+
+  // Streak: count consecutive past days (going backwards from yesterday)
+  // that had at least one completed item.
+  let streak = 0;
+  const check = new Date(todayStart);
+  check.setDate(check.getDate() - 1);
+
+  for (let i = 0; i < 365; i++) {
+    const dayStart = new Date(check);
+    const dayEnd = new Date(check);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const count = await prisma.scheduleItem.count({
+      where: { date: { gte: dayStart, lt: dayEnd }, status: 'done' },
+    });
+
+    if (count === 0) break;
+    streak++;
+    check.setDate(check.getDate() - 1);
+  }
+
+  // Include today in streak if already has a completion.
+  if (done > 0) streak++;
+
+  res.json({ date: todayStr, done, pending, skipped, streak });
+}

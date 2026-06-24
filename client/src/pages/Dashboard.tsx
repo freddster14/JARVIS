@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { format, addWeeks, subWeeks, startOfWeek } from 'date-fns';
 import { WeekCalendar } from '../components/WeekCalendar.js';
 import { TodayPanel } from '../components/TodayPanel.js';
+import { StatsBar } from '../components/StatsBar.js';
 import { useGenerateSchedule } from '../hooks/useSchedule.js';
 import { useTasks } from '../hooks/useTasks.js';
 
@@ -59,6 +60,8 @@ export function Dashboard() {
           {(error as Error).message}
         </div>
       )}
+
+      <StatsBar />
 
       {!tasks?.length && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-700 text-sm">
