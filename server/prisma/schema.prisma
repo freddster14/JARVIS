@@ -1,0 +1,73 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Task {
+  id            String         @id @default(cuid())
+  name          String
+  durationMin   Int
+  priority      Int            @default(1)
+  category      String?
+  weeklyGoal    Int            @default(1)
+  createdAt     DateTime       @default(now())
+  scheduleItems ScheduleItem[]
+  completions   Completion[]
+}
+
+model FixedBlock {
+  id        String  @id @default(cuid())
+  name      String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  recurring Boolean @default(true)
+}
+
+model ScheduleItem {
+  id         String    @id @default(cuid())
+  taskId     String
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  date       DateTime
+  startTime  String
+  endTime    String
+  status     String    @default("pending")
+  notifiedAt DateTime?
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+model Completion {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  weekStart DateTime
+  scheduled Int
+  completed Int
+  skipped   Int
+}
+
+model UserProfile {
+  id               String  @id @default(cuid())
+  wakeUpMode       String  @default("fixed")
+  fixedWakeTime    String?
+  morningPingTime  String?
+  fallbackWakeTime String?
+}
+
+model DailyWakeLog {
+  id       String   @id @default(cuid())
+  date     DateTime @unique
+  wakeTime String
+  source   String
+}
