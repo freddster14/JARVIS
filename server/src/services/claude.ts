@@ -125,6 +125,88 @@ export async function generateWeeklySchedule(params: {
   return input.items;
 }
 
+interface TaskWeekStat {
+  name: string;
+  category: string | null;
+  weeklyGoal: number;
+  scheduled: number;
+  completed: number;
+  skipped: number;
+  goalMet: boolean;
+}
+
+export interface WeeklyReview {
+  headline: string;
+  summary: string;
+  wins: string[];
+  focus: string[];
+}
+
+const reviewOutputTool: Anthropic.Tool = {
+  name: 'output_review',
+  description: 'Emit the weekly performance review as structured JSON',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      headline: { type: 'string', description: 'One punchy sentence summarizing the week (max 12 words)' },
+      summary: { type: 'string', description: '2-3 sentences of honest, specific analysis of the week' },
+      wins: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '1-3 short bullet points celebrating what went well',
+      },
+      focus: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '1-3 short, actionable suggestions for next week',
+      },
+    },
+    required: ['headline', 'summary', 'wins', 'focus'],
+  },
+};
+
+export async function generateWeeklyReview(params: {
+  weekStart: string;
+  tasks: TaskWeekStat[];
+  overallCompletionRate: number;
+}): Promise<WeeklyReview> {
+  const { weekStart, tasks, overallCompletionRate } = params;
+  const rate = Math.round(overallCompletionRate * 100);
+
+  const taskLines = tasks
+    .map(
+      (t) =>
+        `- ${t.name}${t.category ? ` (${t.category})` : ''}: completed ${t.completed}/${t.weeklyGoal} goal, ${t.scheduled} scheduled, ${t.skipped} skipped${t.goalMet ? ' ✓ goal met' : ''}`
+    )
+    .join('\n');
+
+  const response = await client.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: 1500,
+    tools: [reviewOutputTool],
+    tool_choice: { type: 'tool', name: 'output_review' },
+    messages: [
+      {
+        role: 'user',
+        content: `You are JARVIS, a personal AI scheduling assistant reviewing the user's week of ${weekStart}.
+
+OVERALL COMPLETION RATE: ${rate}% (of tasks they decided on, i.e. done vs skipped)
+
+PER-TASK RESULTS:
+${taskLines || 'No tasks were scheduled this week.'}
+
+Write a brief, honest weekly review. Be warm but direct — celebrate genuine progress, and if they fell short on goals, name it kindly and suggest a concrete adjustment. Don't be saccharine or generic. Call the output_review tool.`,
+      },
+    ],
+  });
+
+  const toolUse = response.content.find((b) => b.type === 'tool_use');
+  if (!toolUse || toolUse.type !== 'tool_use') {
+    throw new Error('Claude did not call the review output tool');
+  }
+  return toolUse.input as WeeklyReview;
+}
+
 export async function generateEncouragement(params: {
   taskName: string;
   minutesUntil: number;

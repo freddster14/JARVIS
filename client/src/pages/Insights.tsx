@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, addWeeks, subWeeks, startOfWeek } from 'date-fns';
-import { useWeekProgress, useHistory } from '../hooks/useStats.js';
-import type { TaskProgress, HistoryWeek } from '../lib/api.js';
+import { useWeekProgress, useHistory, useWeeklyReview } from '../hooks/useStats.js';
+import type { TaskProgress, HistoryWeek, WeeklyReview } from '../lib/api.js';
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
@@ -48,6 +48,69 @@ function TaskRow({ task }: { task: TaskProgress }) {
         {task.scheduled > 0 && <span>{pct(task.completionRate)} completion</span>}
       </div>
     </div>
+  );
+}
+
+function ReviewSection({ weekStart }: { weekStart: string }) {
+  const { mutate, data, isPending, error } = useWeeklyReview();
+  const review: WeeklyReview | undefined = data?.review;
+
+  return (
+    <section className="bg-white rounded-xl shadow p-5 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-lg text-gray-800">AI Weekly Review</h2>
+        <button
+          onClick={() => mutate(weekStart)}
+          disabled={isPending}
+          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+        >
+          {isPending ? 'Thinking…' : review ? 'Regenerate' : 'Generate review'}
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-600">{(error as Error).message}</p>
+      )}
+
+      {!review && !isPending && !error && (
+        <p className="text-sm text-gray-400">
+          Let JARVIS analyze this week's performance and suggest where to focus next.
+        </p>
+      )}
+
+      {review && (
+        <div className="space-y-4">
+          <div className="bg-indigo-50 rounded-lg p-4">
+            <p className="font-semibold text-indigo-900">{review.headline}</p>
+            <p className="text-sm text-indigo-800 mt-1">{review.summary}</p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-green-600 font-semibold mb-1.5">Wins</p>
+              <ul className="space-y-1">
+                {review.wins.map((w, i) => (
+                  <li key={i} className="text-sm text-gray-700 flex gap-2">
+                    <span className="text-green-500 shrink-0">✓</span>
+                    <span>{w}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold mb-1.5">Focus Next Week</p>
+              <ul className="space-y-1">
+                {review.focus.map((f, i) => (
+                  <li key={i} className="text-sm text-gray-700 flex gap-2">
+                    <span className="text-indigo-500 shrink-0">→</span>
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -146,6 +209,8 @@ export function Insights() {
               <p className="text-sm text-gray-400">No tasks yet. Add tasks to track progress.</p>
             )}
           </section>
+
+          <ReviewSection weekStart={format(weekStart, 'yyyy-MM-dd')} />
 
           <section className="bg-white rounded-xl shadow p-5">
             <h2 className="font-semibold text-lg text-gray-800 mb-1">Completion Trend</h2>

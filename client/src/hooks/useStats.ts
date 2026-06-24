@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { format, startOfWeek } from 'date-fns';
 
@@ -14,5 +14,11 @@ export function useHistory(weeks = 8) {
   return useQuery({
     queryKey: ['stats', 'history', weeks],
     queryFn: () => api.stats.history(weeks),
+  });
+}
+
+export function useWeeklyReview() {
+  return useMutation({
+    mutationFn: (weekStart: string) => api.ai.weeklyReview(weekStart),
   });
 }

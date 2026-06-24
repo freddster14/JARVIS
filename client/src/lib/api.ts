@@ -64,6 +64,13 @@ export interface WeekProgress {
   tasks: TaskProgress[];
 }
 
+export interface WeeklyReview {
+  headline: string;
+  summary: string;
+  wins: string[];
+  focus: string[];
+}
+
 export interface HistoryWeek {
   weekStart: string;
   scheduled: number;
@@ -139,6 +146,11 @@ export const api = {
   ai: {
     generateSchedule: (weekStart?: string) =>
       request<{ created: number; weekStart: string }>('/api/ai/generate-schedule', {
+        method: 'POST',
+        body: JSON.stringify({ weekStart }),
+      }),
+    weeklyReview: (weekStart?: string) =>
+      request<{ weekStart: string; review: WeeklyReview }>('/api/ai/weekly-review', {
         method: 'POST',
         body: JSON.stringify({ weekStart }),
       }),
