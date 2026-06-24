@@ -19,6 +19,15 @@ export function useUpdateItemStatus() {
   });
 }
 
+export function useRescheduleItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; date: string; startTime: string; endTime: string }) =>
+      api.schedule.reschedule(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule'] }),
+  });
+}
+
 export function useGenerateSchedule() {
   const qc = useQueryClient();
   return useMutation({

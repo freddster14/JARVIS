@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { useSchedule, useUpdateItemStatus } from '../hooks/useSchedule.js';
+import { RescheduleModal } from './RescheduleModal.js';
 import type { ScheduleItem } from '../lib/api.js';
 
 const STATUS_STYLES: Record<ScheduleItem['status'], string> = {
@@ -19,6 +21,7 @@ export function WeekCalendar({ currentDate }: Props) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const { data: items, isLoading } = useSchedule(currentDate);
   const { mutate: updateStatus } = useUpdateItemStatus();
+  const [rescheduling, setRescheduling] = useState<ScheduleItem | null>(null);
 
   if (isLoading) return <div className="text-gray-400 text-sm py-8 text-center">Loading schedule…</div>;
 
@@ -47,21 +50,43 @@ export function WeekCalendar({ currentDate }: Props) {
               {itemsForDay(dateStr).map((item) => (
                 <div
                   key={item.id}
-                  className={`rounded-lg border px-2 py-1.5 text-xs cursor-pointer select-none transition hover:shadow-sm ${STATUS_STYLES[item.status]}`}
-                  onClick={() => {
-                    const next = item.status === 'pending' ? 'done' : item.status === 'done' ? 'skipped' : 'pending';
-                    updateStatus({ id: item.id, status: next });
-                  }}
-                  title={`${item.startTime}–${item.endTime}\nClick to cycle status`}
+                  className={`group relative rounded-lg border px-2 py-1.5 text-xs select-none transition hover:shadow-sm ${STATUS_STYLES[item.status]}`}
                 >
-                  <div className="font-medium truncate">{item.task.name}</div>
-                  <div className="opacity-70">{item.startTime}–{item.endTime}</div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRescheduling(item);
+                    }}
+                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition text-xs leading-none hover:scale-110"
+                    title="Reschedule"
+                  >
+                    ↻
+                  </button>
+                  <div
+                    className="cursor-pointer pr-3"
+                    onClick={() => {
+                      const next = item.status === 'pending' ? 'done' : item.status === 'done' ? 'skipped' : 'pending';
+                      updateStatus({ id: item.id, status: next });
+                    }}
+                    title={`${item.startTime}–${item.endTime}\nClick to cycle status · ↻ to reschedule`}
+                  >
+                    <div className="font-medium truncate">{item.task.name}</div>
+                    <div className="opacity-70">{item.startTime}–{item.endTime}</div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         ))}
       </div>
+
+      {rescheduling && (
+        <RescheduleModal
+          item={rescheduling}
+          weekStart={weekStart}
+          onClose={() => setRescheduling(null)}
+        />
+      )}
     </div>
   );
 }

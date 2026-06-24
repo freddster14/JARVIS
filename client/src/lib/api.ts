@@ -113,6 +113,11 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       }),
+    reschedule: (id: string, data: { date: string; startTime: string; endTime: string }) =>
+      request<ScheduleItem>(`/api/schedule/${id}/reschedule`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
   },
 
   push: {
