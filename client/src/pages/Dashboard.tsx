@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { format, addWeeks, subWeeks, startOfWeek } from 'date-fns';
 import { WeekCalendar } from '../components/WeekCalendar.js';
+import { TodayPanel } from '../components/TodayPanel.js';
 import { useGenerateSchedule } from '../hooks/useSchedule.js';
 import { useTasks } from '../hooks/useTasks.js';
 
@@ -65,8 +66,13 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow p-5">
-        <WeekCalendar currentDate={currentDate} />
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 bg-white rounded-xl shadow p-5">
+          <TodayPanel />
+        </div>
+        <div className="lg:col-span-2 bg-white rounded-xl shadow p-5">
+          <WeekCalendar currentDate={currentDate} />
+        </div>
       </div>
     </div>
   );
