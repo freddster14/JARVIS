@@ -64,6 +64,13 @@ export interface WeekProgress {
   tasks: TaskProgress[];
 }
 
+export interface WakeLog {
+  id: string;
+  date: string;
+  wakeTime: string;
+  source: string;
+}
+
 export interface TodayStats {
   date: string;
   done: number;
@@ -145,7 +152,8 @@ export const api = {
 
   wake: {
     confirm: (time?: string) =>
-      request('/api/wake/confirm', { method: 'POST', body: JSON.stringify({ time }) }),
+      request<WakeLog>('/api/wake/confirm', { method: 'POST', body: JSON.stringify({ time }) }),
+    getLog: () => request<WakeLog[]>('/api/wake/log'),
     getProfile: () => request<UserProfile>('/api/wake/profile'),
     updateProfile: (data: Partial<Omit<UserProfile, 'id'>>) =>
       request<UserProfile>('/api/wake/profile', { method: 'PATCH', body: JSON.stringify(data) }),

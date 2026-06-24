@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { FixedBlockForm } from '../components/FixedBlockForm.js';
+import { WakeLog } from '../components/WakeLog.js';
 import { usePushSubscription } from '../hooks/usePushSubscription.js';
 
 export function Settings() {
@@ -102,6 +103,9 @@ export function Settings() {
           )}
         </section>
       )}
+
+      {/* Wake History */}
+      <WakeLog />
 
       {/* Fixed Blocks */}
       <section className="space-y-3">
