@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Dashboard } from './pages/Dashboard.js';
 import { Tasks } from './pages/Tasks.js';
+import { Insights } from './pages/Insights.js';
 import { Settings } from './pages/Settings.js';
 
 const queryClient = new QueryClient({
@@ -18,6 +19,7 @@ function Nav() {
       <span className="font-bold text-indigo-700 text-lg tracking-tight mr-4">JARVIS</span>
       <NavLink to="/" end className={({ isActive }) => (isActive ? active : inactive)}>Dashboard</NavLink>
       <NavLink to="/tasks" className={({ isActive }) => (isActive ? active : inactive)}>Tasks</NavLink>
+      <NavLink to="/insights" className={({ isActive }) => (isActive ? active : inactive)}>Insights</NavLink>
       <NavLink to="/settings" className={({ isActive }) => (isActive ? active : inactive)}>Settings</NavLink>
     </nav>
   );
@@ -33,6 +35,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/insights" element={<Insights />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>

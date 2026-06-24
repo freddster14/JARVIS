@@ -7,6 +7,7 @@ import scheduleRouter from './routes/schedule.js';
 import notificationsRouter from './routes/notifications.js';
 import wakeRouter from './routes/wake.js';
 import aiRouter from './routes/ai.js';
+import statsRouter from './routes/stats.js';
 import { initVapid } from './lib/vapid.js';
 import { startNotifierJob } from './jobs/notifier.js';
 
@@ -22,6 +23,7 @@ app.use('/api/schedule', scheduleRouter);
 app.use('/api/push', notificationsRouter);
 app.use('/api/wake', wakeRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/stats', statsRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

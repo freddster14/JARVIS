@@ -36,6 +36,42 @@ export interface UserProfile {
   fallbackWakeTime: string | null;
 }
 
+export interface TaskProgress {
+  taskId: string;
+  name: string;
+  category: string | null;
+  priority: number;
+  weeklyGoal: number;
+  scheduled: number;
+  completed: number;
+  skipped: number;
+  pending: number;
+  goalMet: boolean;
+  completionRate: number;
+}
+
+export interface WeekProgress {
+  weekStart: string;
+  overall: {
+    totalScheduled: number;
+    totalCompleted: number;
+    totalSkipped: number;
+    totalPending: number;
+    completionRate: number;
+    goalsMet: number;
+    totalGoals: number;
+  };
+  tasks: TaskProgress[];
+}
+
+export interface HistoryWeek {
+  weekStart: string;
+  scheduled: number;
+  completed: number;
+  skipped: number;
+  completionRate: number;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -101,5 +137,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ weekStart }),
       }),
+  },
+
+  stats: {
+    week: (weekStart: string) => request<WeekProgress>(`/api/stats/week?weekStart=${weekStart}`),
+    history: (weeks = 8) => request<{ weeks: number; history: HistoryWeek[] }>(`/api/stats/history?weeks=${weeks}`),
   },
 };
