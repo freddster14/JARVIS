@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { findClash, isValidSlot } from '../services/scheduler.js';
 
 const StatusSchema = z.object({
   status: z.enum(['pending', 'done', 'skipped', 'rescheduled']),
@@ -49,11 +50,6 @@ export async function updateItemStatus(req: Request<{ id: string }>, res: Respon
   }
 }
 
-function toMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
 export async function rescheduleItem(req: Request<{ id: string }>, res: Response) {
   const parsed = RescheduleSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -62,7 +58,7 @@ export async function rescheduleItem(req: Request<{ id: string }>, res: Response
   }
 
   const { date, startTime, endTime } = parsed.data;
-  if (toMinutes(endTime) <= toMinutes(startTime)) {
+  if (!isValidSlot({ startTime, endTime })) {
     res.status(400).json({ error: 'endTime must be after startTime' });
     return;
   }
@@ -86,9 +82,7 @@ export async function rescheduleItem(req: Request<{ id: string }>, res: Response
     },
   });
 
-  const newStart = toMinutes(startTime);
-  const newEnd = toMinutes(endTime);
-  const clash = sameDay.find((i) => newStart < toMinutes(i.endTime) && toMinutes(i.startTime) < newEnd);
+  const clash = findClash({ startTime, endTime }, sameDay);
   if (clash) {
     res.status(409).json({ error: `Overlaps with another task (${clash.startTime}–${clash.endTime})` });
     return;
