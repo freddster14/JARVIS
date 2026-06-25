@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import tasksRouter from './routes/tasks.js';
 import blocksRouter from './routes/blocks.js';
 import scheduleRouter from './routes/schedule.js';
@@ -26,6 +27,15 @@ app.use('/api/ai', aiRouter);
 app.use('/api/stats', statsRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+// Serve built React client in production (must come after all /api routes)
+if (process.env.NODE_ENV === 'production') {
+  const clientDist = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientDist));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 initVapid();
 startNotifierJob();
