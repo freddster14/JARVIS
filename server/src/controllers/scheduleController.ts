@@ -1,28 +1,9 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { findClash, isValidSlot } from '../services/scheduler.js';
 
-const StatusSchema = z.object({
-  status: z.enum(['pending', 'done', 'skipped', 'rescheduled']),
-});
-
-const WeekStartSchema = z.object({
-  weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'weekStart must be yyyy-MM-dd'),
-});
-
-const RescheduleSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/),
-});
-
 export async function getSchedule(req: Request, res: Response) {
-  const { weekStart } = req.query;
-  if (!weekStart || typeof weekStart !== 'string') {
-    res.status(400).json({ error: 'weekStart query param required (yyyy-MM-dd)' });
-    return;
-  }
+  const weekStart = req.query.weekStart as string;
 
   const start = new Date(weekStart);
   const end = new Date(start);
@@ -38,15 +19,10 @@ export async function getSchedule(req: Request, res: Response) {
 }
 
 export async function updateItemStatus(req: Request<{ id: string }>, res: Response) {
-  const parsed = StatusSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
   try {
     const item = await prisma.scheduleItem.update({
       where: { id: req.params.id },
-      data: { status: parsed.data.status },
+      data: { status: req.body.status as string },
     });
     res.json(item);
   } catch {
@@ -55,13 +31,13 @@ export async function updateItemStatus(req: Request<{ id: string }>, res: Respon
 }
 
 export async function rescheduleItem(req: Request<{ id: string }>, res: Response) {
-  const parsed = RescheduleSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
+  const { date, startTime, endTime } = req.body as {
+    date: string;
+    startTime: string;
+    endTime: string;
+  };
 
-  const { date, startTime, endTime } = parsed.data;
+  // isValidSlot is a pure helper — belt-and-suspenders check after field validation
   if (!isValidSlot({ startTime, endTime })) {
     res.status(400).json({ error: 'endTime must be after startTime' });
     return;
@@ -73,7 +49,6 @@ export async function rescheduleItem(req: Request<{ id: string }>, res: Response
     return;
   }
 
-  // Reject overlaps with other items on the target day.
   const targetDay = new Date(date);
   const dayEnd = new Date(targetDay);
   dayEnd.setDate(dayEnd.getDate() + 1);
@@ -100,22 +75,9 @@ export async function rescheduleItem(req: Request<{ id: string }>, res: Response
   res.json(item);
 }
 
-/**
- * DELETE /api/schedule/week
- * Wipes all schedule items for the given week. Only removes pending/rescheduled
- * items by default; pass `{ force: true }` to remove completed/skipped ones too.
- */
 export async function clearWeek(req: Request, res: Response) {
-  const parsed = WeekStartSchema.extend({
-    force: z.boolean().optional(),
-  }).safeParse(req.body);
+  const { weekStart, force = false } = req.body as { weekStart: string; force?: boolean };
 
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
-
-  const { weekStart, force } = parsed.data;
   const start = new Date(weekStart);
   const end = new Date(start);
   end.setDate(end.getDate() + 7);
@@ -126,5 +88,5 @@ export async function clearWeek(req: Request, res: Response) {
   };
 
   const { count } = await prisma.scheduleItem.deleteMany({ where });
-  res.json({ deleted: count, weekStart, force: force ?? false });
+  res.json({ deleted: count, weekStart, force });
 }

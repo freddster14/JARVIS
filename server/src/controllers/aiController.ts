@@ -1,23 +1,12 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { generateWeeklySchedule, generateWeeklyReview } from '../services/claude.js';
 import { getMondayOfWeek } from '../services/scheduler.js';
 import { subWeeks, startOfWeek, format } from 'date-fns';
 
-const GenerateSchema = z.object({
-  weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
-
 export async function generateSchedule(req: Request, res: Response) {
-  const parsed = GenerateSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
-
-  const weekStartDate = parsed.data.weekStart
-    ? new Date(parsed.data.weekStart)
+  const weekStartDate = req.body.weekStart
+    ? new Date(req.body.weekStart as string)
     : getMondayOfWeek(new Date());
 
   const weekEnd = new Date(weekStartDate);
@@ -27,11 +16,7 @@ export async function generateSchedule(req: Request, res: Response) {
     prisma.task.findMany(),
     prisma.fixedBlock.findMany(),
     prisma.completion.findMany({
-      where: {
-        weekStart: {
-          gte: startOfWeek(subWeeks(new Date(), 4), { weekStartsOn: 1 }),
-        },
-      },
+      where: { weekStart: { gte: startOfWeek(subWeeks(new Date(), 4), { weekStartsOn: 1 }) } },
     }),
     prisma.dailyWakeLog.findMany({
       where: { date: { gte: weekStartDate, lt: weekEnd } },
@@ -44,18 +29,15 @@ export async function generateSchedule(req: Request, res: Response) {
   }
 
   const profile = await prisma.userProfile.findFirst();
-  const enrichedWakeLogs = wakeLogs.length > 0 ? wakeLogs : [];
+  const enrichedWakeLogs = [...wakeLogs];
 
   if (profile?.wakeUpMode === 'fixed' && profile.fixedWakeTime && enrichedWakeLogs.length === 0) {
-    const days = Array.from({ length: 7 }, (_, i) => {
+    for (let i = 0; i < 7; i++) {
       const d = new Date(weekStartDate);
       d.setDate(d.getDate() + i);
-      return d;
-    });
-    for (const day of days) {
       enrichedWakeLogs.push({
-        id: `synthetic-${day.toISOString()}`,
-        date: day,
+        id: `synthetic-${d.toISOString()}`,
+        date: d,
         wakeTime: profile.fixedWakeTime,
         source: 'fixed',
       });
@@ -94,20 +76,11 @@ export async function generateSchedule(req: Request, res: Response) {
   }
 }
 
-const ReviewSchema = z.object({
-  weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
-
 export async function weeklyReview(req: Request, res: Response) {
-  const parsed = ReviewSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
-
-  const weekStartDate = parsed.data.weekStart
-    ? getMondayOfWeek(new Date(parsed.data.weekStart))
+  const weekStartDate = req.body.weekStart
+    ? getMondayOfWeek(new Date(req.body.weekStart as string))
     : getMondayOfWeek(new Date());
+
   const weekEnd = new Date(weekStartDate);
   weekEnd.setDate(weekEnd.getDate() + 7);
 

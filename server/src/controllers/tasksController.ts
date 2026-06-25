@@ -1,16 +1,5 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-
-const CreateTaskSchema = z.object({
-  name: z.string().min(1),
-  durationMin: z.number().int().min(5),
-  priority: z.number().int().min(1).max(5).optional(),
-  category: z.string().optional(),
-  weeklyGoal: z.number().int().min(1).optional(),
-});
-
-const UpdateTaskSchema = CreateTaskSchema.partial();
 
 export async function getTasks(_req: Request, res: Response) {
   const tasks = await prisma.task.findMany({ orderBy: { createdAt: 'asc' } });
@@ -18,25 +7,39 @@ export async function getTasks(_req: Request, res: Response) {
 }
 
 export async function createTask(req: Request, res: Response) {
-  const parsed = CreateTaskSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
-  const task = await prisma.task.create({ data: parsed.data });
+  const { name, durationMin, priority = 1, category, weeklyGoal = 1 } = req.body as {
+    name: string;
+    durationMin: number;
+    priority?: number;
+    category?: string;
+    weeklyGoal?: number;
+  };
+
+  const task = await prisma.task.create({
+    data: { name: name.trim(), durationMin, priority, category: category?.trim() || null, weeklyGoal },
+  });
   res.status(201).json(task);
 }
 
 export async function updateTask(req: Request<{ id: string }>, res: Response) {
-  const parsed = UpdateTaskSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
+  const { name, durationMin, priority, category, weeklyGoal } = req.body as {
+    name?: string;
+    durationMin?: number;
+    priority?: number;
+    category?: string | null;
+    weeklyGoal?: number;
+  };
+
   try {
     const task = await prisma.task.update({
       where: { id: req.params.id },
-      data: parsed.data,
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(durationMin !== undefined && { durationMin }),
+        ...(priority !== undefined && { priority }),
+        ...(category !== undefined && { category: category?.trim() || null }),
+        ...(weeklyGoal !== undefined && { weeklyGoal }),
+      },
     });
     res.json(task);
   } catch {
