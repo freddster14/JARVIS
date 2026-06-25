@@ -1,22 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, addWeeks, subWeeks, startOfWeek } from 'date-fns';
 import { WeekCalendar } from '../components/WeekCalendar.js';
 import { TodayPanel } from '../components/TodayPanel.js';
 import { StatsBar } from '../components/StatsBar.js';
-import { useGenerateSchedule } from '../hooks/useSchedule.js';
+import { useGenerateSchedule, useClearWeek } from '../hooks/useSchedule.js';
 import { useTasks } from '../hooks/useTasks.js';
 
 export function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { mutate: generateSchedule, isPending, error } = useGenerateSchedule();
+  const [clearArmed, setClearArmed] = useState(false);
+  const { mutate: generateSchedule, isPending: isGenerating, error: generateError } = useGenerateSchedule();
+  const { mutate: clearWeek, isPending: isClearing } = useClearWeek();
   const { data: tasks } = useTasks();
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
   const weekLabel = `Week of ${format(weekStart, 'MMM d, yyyy')}`;
 
+  // Disarm the clear button if the user navigates away
+  useEffect(() => { setClearArmed(false); }, [weekStartStr]);
+
   function handleGenerate() {
-    const weekStartStr = format(weekStart, 'yyyy-MM-dd');
     generateSchedule(weekStartStr);
+  }
+
+  function handleClear() {
+    if (!clearArmed) {
+      setClearArmed(true);
+      // Auto-disarm after 4 s if user doesn't confirm
+      setTimeout(() => setClearArmed(false), 4000);
+      return;
+    }
+    clearWeek({ weekStart: weekStartStr }, { onSuccess: () => setClearArmed(false) });
   }
 
   return (
@@ -45,19 +60,33 @@ export function Dashboard() {
           >
             Next →
           </button>
+
+          <button
+            onClick={handleClear}
+            disabled={isClearing}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50 ${
+              clearArmed
+                ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse'
+                : 'border text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+            }`}
+            title="Remove pending schedule items for this week"
+          >
+            {isClearing ? 'Clearing…' : clearArmed ? 'Confirm clear?' : 'Clear week'}
+          </button>
+
           <button
             onClick={handleGenerate}
-            disabled={isPending || !tasks?.length}
+            disabled={isGenerating || !tasks?.length}
             className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
           >
-            {isPending ? 'Generating…' : 'Generate Schedule'}
+            {isGenerating ? 'Generating…' : 'Generate Schedule'}
           </button>
         </div>
       </div>
 
-      {error && (
+      {generateError && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">
-          {(error as Error).message}
+          {(generateError as Error).message}
         </div>
       )}
 

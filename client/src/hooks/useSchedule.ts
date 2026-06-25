@@ -19,6 +19,18 @@ export function useUpdateItemStatus() {
   });
 }
 
+export function useClearWeek() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ weekStart, force }: { weekStart: string; force?: boolean }) =>
+      api.schedule.clearWeek(weekStart, force),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['schedule'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
+    },
+  });
+}
+
 export function useRescheduleItem() {
   const qc = useQueryClient();
   return useMutation({

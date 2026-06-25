@@ -140,6 +140,11 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+    clearWeek: (weekStart: string, force = false) =>
+      request<{ deleted: number; weekStart: string; force: boolean }>('/api/schedule/week', {
+        method: 'DELETE',
+        body: JSON.stringify({ weekStart, force }),
+      }),
   },
 
   push: {

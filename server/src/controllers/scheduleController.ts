@@ -7,6 +7,10 @@ const StatusSchema = z.object({
   status: z.enum(['pending', 'done', 'skipped', 'rescheduled']),
 });
 
+const WeekStartSchema = z.object({
+  weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'weekStart must be yyyy-MM-dd'),
+});
+
 const RescheduleSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
@@ -94,4 +98,33 @@ export async function rescheduleItem(req: Request<{ id: string }>, res: Response
     include: { task: true },
   });
   res.json(item);
+}
+
+/**
+ * DELETE /api/schedule/week
+ * Wipes all schedule items for the given week. Only removes pending/rescheduled
+ * items by default; pass `{ force: true }` to remove completed/skipped ones too.
+ */
+export async function clearWeek(req: Request, res: Response) {
+  const parsed = WeekStartSchema.extend({
+    force: z.boolean().optional(),
+  }).safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const { weekStart, force } = parsed.data;
+  const start = new Date(weekStart);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+
+  const where = {
+    date: { gte: start, lt: end },
+    ...(force ? {} : { status: { in: ['pending', 'rescheduled'] } }),
+  };
+
+  const { count } = await prisma.scheduleItem.deleteMany({ where });
+  res.json({ deleted: count, weekStart, force: force ?? false });
 }
