@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { FixedBlockForm } from '../components/FixedBlockForm.js';
@@ -7,9 +8,15 @@ import { usePushSubscription } from '../hooks/usePushSubscription.js';
 export function Settings() {
   const qc = useQueryClient();
   const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: api.wake.getProfile });
+  const [savedLabel, setSavedLabel] = useState<string | null>(null);
   const updateProfile = useMutation({
     mutationFn: api.wake.updateProfile,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['profile'] });
+      const label = 'wakeUpMode' in vars ? 'Mode' : 'fixedWakeTime' in vars ? 'Wake time' : 'morningPingTime' in vars ? 'Ping time' : 'Fallback time';
+      setSavedLabel(label);
+      setTimeout(() => setSavedLabel(null), 2000);
+    },
   });
   const { subscribed, loading, enable, disable } = usePushSubscription();
 
@@ -39,7 +46,14 @@ export function Settings() {
       {/* Wake-Up Settings */}
       {profile && (
         <section className="bg-white rounded-xl shadow p-5 space-y-4">
-          <h2 className="font-semibold text-lg text-gray-800">Wake-Up Settings</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-semibold text-lg text-gray-800">Wake-Up Settings</h2>
+            {savedLabel && (
+              <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                {savedLabel} saved
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500">
             JARVIS needs to know when your day starts to schedule tasks in your available window before work.
           </p>

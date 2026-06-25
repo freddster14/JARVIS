@@ -172,7 +172,17 @@ function TaskEditRow({ task, onDone }: { task: Task; onDone: () => void }) {
 
 function TaskRow({ task }: { task: Task }) {
   const [editing, setEditing] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
   const { mutate: deleteTask } = useDeleteTask();
+
+  function handleDelete() {
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      setTimeout(() => setDeleteArmed(false), 3000);
+      return;
+    }
+    deleteTask(task.id);
+  }
 
   if (editing) {
     return <TaskEditRow task={task} onDone={() => setEditing(false)} />;
@@ -209,11 +219,15 @@ function TaskRow({ task }: { task: Task }) {
           ✎
         </button>
         <button
-          onClick={() => deleteTask(task.id)}
-          className="text-gray-300 hover:text-red-400 transition text-lg leading-none"
-          title="Delete task"
+          onClick={handleDelete}
+          className={`transition text-sm font-medium px-1 py-0.5 ${
+            deleteArmed
+              ? 'text-red-500 animate-pulse'
+              : 'text-gray-300 hover:text-red-400 text-lg leading-none'
+          }`}
+          title={deleteArmed ? 'Click again to confirm deletion' : 'Delete task'}
         >
-          ×
+          {deleteArmed ? 'Sure?' : '×'}
         </button>
       </div>
     </div>
