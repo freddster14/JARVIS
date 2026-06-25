@@ -26,8 +26,13 @@ export function RescheduleModal({ item, weekStart, onClose }: Props) {
 
   const [date, setDate] = useState(item.date.slice(0, 10));
   const [startTime, setStartTime] = useState(item.startTime);
+  const [startTouched, setStartTouched] = useState(false);
 
-  const endTime = minutesToTime(toMinutes(startTime) + durationMin);
+  const endMinutes = toMinutes(startTime) + durationMin;
+  const endTime = minutesToTime(endMinutes);
+  const pastMidnight = endMinutes > 1440;
+  const startError = startTouched && !startTime ? 'Start time is required.' : undefined;
+  const endError = startTouched && pastMidnight ? 'Task would end past midnight — choose an earlier start time.' : undefined;
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(startOfWeek(weekStart, { weekStartsOn: 1 }), i);
@@ -35,6 +40,8 @@ export function RescheduleModal({ item, weekStart, onClose }: Props) {
   });
 
   function handleSave() {
+    setStartTouched(true);
+    if (!startTime || pastMidnight) return;
     reschedule(
       { id: item.id, date, startTime, endTime },
       { onSuccess: onClose }
@@ -68,21 +75,35 @@ export function RescheduleModal({ item, weekStart, onClose }: Props) {
           </select>
         </div>
 
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <label className="block text-sm text-gray-600 mb-1">Start time</label>
-            <input
-              type="time"
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-            />
+        <div>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-sm text-gray-600 mb-1">Start time</label>
+              <input
+                type="time"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 transition ${
+                  (startError || endError)
+                    ? 'border-red-300 focus:ring-red-300'
+                    : 'focus:ring-indigo-400'
+                }`}
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                onBlur={() => setStartTouched(true)}
+              />
+            </div>
+            <div className={`text-sm pb-2 ${pastMidnight && startTouched ? 'text-red-500' : 'text-gray-400'}`}>
+              → {endTime}
+            </div>
           </div>
-          <div className="text-sm text-gray-400 pb-2">→ {endTime}</div>
+          {(startError || endError) && (
+            <p className="text-xs text-red-500 mt-1">{startError ?? endError}</p>
+          )}
         </div>
 
         {error && (
-          <p className="text-sm text-red-600">{(error as Error).message}</p>
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {(error as Error).message}
+          </p>
         )}
 
         <div className="flex gap-2 pt-1">

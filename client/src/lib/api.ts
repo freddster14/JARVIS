@@ -100,8 +100,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+    const body = await res.json().catch(() => ({})) as {
+      error?: string;
+      errors?: Array<{ path: string; msg: string }>;
+    };
+    // express-validator returns { errors: [...] }; surface the first message
+    const message =
+      body.error ??
+      (body.errors?.length ? body.errors[0].msg : undefined) ??
+      `HTTP ${res.status}`;
+    throw new Error(message);
   }
   if (res.status === 204) return undefined as unknown as T;
   return res.json();
