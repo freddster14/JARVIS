@@ -11,9 +11,10 @@ interface BlockErrors {
   name?: string;
   startTime?: string;
   endTime?: string;
+  days?: string;
 }
 
-function validateBlock(form: BlockFormState): BlockErrors {
+function validateBlock(form: Omit<BlockFormState, 'dayOfWeek'>): BlockErrors {
   const errors: BlockErrors = {};
   if (!form.name.trim()) errors.name = 'Name is required.';
   else if (form.name.trim().length > 100) errors.name = 'Name must be 100 characters or fewer.';
@@ -24,7 +25,8 @@ function validateBlock(form: BlockFormState): BlockErrors {
   return errors;
 }
 
-const EMPTY_BLOCK: BlockFormState = { name: '', dayOfWeek: 1, startTime: '09:00', endTime: '17:00', recurring: true };
+const EMPTY_BLOCK: Omit<BlockFormState, 'dayOfWeek'> = { name: '', startTime: '09:00', endTime: '17:00', recurring: true };
+const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 function blockInputClass(field: keyof BlockErrors, touched: Partial<Record<keyof BlockErrors, boolean>>, errors: BlockErrors) {
   return `border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 transition ${
@@ -88,9 +90,9 @@ function BlockEditRow({ block, onDone }: { block: FixedBlock; onDone: () => void
         />
         {touched.name && <FieldError message={errors.name} />}
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <select
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+          className="w-full min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
           value={form.dayOfWeek}
           onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
         >
@@ -99,7 +101,7 @@ function BlockEditRow({ block, onDone }: { block: FixedBlock; onDone: () => void
         <div>
           <input
             type="time"
-            className={blockInputClass('startTime', touched, errors)}
+            className={`w-full min-w-0 ${blockInputClass('startTime', touched, errors)}`}
             value={form.startTime}
             onChange={(e) => setForm({ ...form, startTime: e.target.value })}
             onBlur={() => touch('startTime')}
@@ -110,7 +112,7 @@ function BlockEditRow({ block, onDone }: { block: FixedBlock; onDone: () => void
         <div>
           <input
             type="time"
-            className={blockInputClass('endTime', touched, errors)}
+            className={`w-full min-w-0 ${blockInputClass('endTime', touched, errors)}`}
             value={form.endTime}
             onChange={(e) => setForm({ ...form, endTime: e.target.value })}
             onBlur={() => touch('endTime')}
@@ -200,22 +202,41 @@ export function FixedBlockForm() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['blocks'] }),
   });
 
-  const [form, setForm] = useState<BlockFormState>(EMPTY_BLOCK);
+  const [form, setForm] = useState(EMPTY_BLOCK);
+  const [selectedDays, setSelectedDays] = useState<number[]>([1]);
   const [touched, setTouched] = useState<Partial<Record<keyof BlockErrors, boolean>>>({});
-  const errors = validateBlock(form);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const errors: BlockErrors = {
+    ...validateBlock(form),
+    ...(selectedDays.length === 0 ? { days: 'Select at least one day.' } : {}),
+  };
   const hasErrors = Object.keys(errors).length > 0;
 
   function touch(field: keyof BlockErrors) {
     setTouched((t) => ({ ...t, [field]: true }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function toggleDay(day: number) {
+    setSelectedDays((days) =>
+      days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort()
+    );
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setTouched({ name: true, startTime: true, endTime: true });
+    setTouched({ name: true, startTime: true, endTime: true, days: true });
     if (hasErrors) return;
-    createBlock.mutate(form, {
-      onSuccess: () => { setForm(EMPTY_BLOCK); setTouched({}); },
-    });
+    setSubmitError(null);
+    try {
+      await Promise.all(
+        selectedDays.map((dayOfWeek) => createBlock.mutateAsync({ ...form, dayOfWeek }))
+      );
+      setForm(EMPTY_BLOCK);
+      setSelectedDays([1]);
+      setTouched({});
+    } catch (err) {
+      setSubmitError((err as Error).message);
+    }
   }
 
   return (
@@ -223,9 +244,9 @@ export function FixedBlockForm() {
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow p-5 space-y-3">
         <h2 className="font-semibold text-lg text-gray-800">Add Fixed Block</h2>
 
-        {createBlock.error && (
+        {submitError && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {(createBlock.error as Error).message}
+            {submitError}
           </p>
         )}
 
@@ -241,18 +262,32 @@ export function FixedBlockForm() {
           {touched.name && <FieldError message={errors.name} />}
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <select
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            value={form.dayOfWeek}
-            onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
-          >
-            {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-          </select>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">Day(s)</label>
+          <div className="grid grid-cols-7 gap-1">
+            {DAY_ABBR.map((abbr, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => toggleDay(i)}
+                className={`py-2 rounded-lg text-xs font-medium border transition ${
+                  selectedDays.includes(i)
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {abbr}
+              </button>
+            ))}
+          </div>
+          {touched.days && <FieldError message={errors.days} />}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
           <div>
             <input
               type="time"
-              className={blockInputClass('startTime', touched, errors)}
+              className={`w-full min-w-0 ${blockInputClass('startTime', touched, errors)}`}
               value={form.startTime}
               onChange={(e) => setForm({ ...form, startTime: e.target.value })}
               onBlur={() => touch('startTime')}
@@ -262,7 +297,7 @@ export function FixedBlockForm() {
           <div>
             <input
               type="time"
-              className={blockInputClass('endTime', touched, errors)}
+              className={`w-full min-w-0 ${blockInputClass('endTime', touched, errors)}`}
               value={form.endTime}
               onChange={(e) => setForm({ ...form, endTime: e.target.value })}
               onBlur={() => touch('endTime')}
@@ -275,7 +310,11 @@ export function FixedBlockForm() {
           disabled={createBlock.isPending}
           className="w-full bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
         >
-          {createBlock.isPending ? 'Adding…' : 'Add Block'}
+          {createBlock.isPending
+            ? 'Adding…'
+            : selectedDays.length > 1
+              ? `Add Block (${selectedDays.length} days)`
+              : 'Add Block'}
         </button>
       </form>
 
