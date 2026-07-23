@@ -16,6 +16,7 @@ export function Dashboard() {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekStartStr = format(weekStart, 'yyyy-MM-dd');
   const weekLabel = `Week of ${format(weekStart, 'MMM d, yyyy')}`;
+  const isCurrentWeek = weekStartStr === format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
   // Disarm the clear button if the user navigates away
   useEffect(() => { setClearArmed(false); }, [weekStartStr]);
@@ -51,7 +52,11 @@ export function Dashboard() {
             </button>
             <button
               onClick={() => setCurrentDate(new Date())}
-              className="px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 transition whitespace-nowrap"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+                isCurrentWeek
+                  ? 'bg-indigo-600 text-white'
+                  : 'border hover:bg-gray-50'
+              }`}
             >
               Today
             </button>
@@ -102,11 +107,11 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 bg-white rounded-xl shadow p-5">
+      <div className="grid lg:grid-cols-3 gap-6 min-w-0">
+        <div className="lg:col-span-1 bg-white rounded-xl shadow p-5 min-w-0">
           <TodayPanel />
         </div>
-        <div className="lg:col-span-2 bg-white rounded-xl shadow p-5">
+        <div className="lg:col-span-2 bg-white rounded-xl shadow p-5 min-w-0">
           <WeekCalendar currentDate={currentDate} />
         </div>
       </div>

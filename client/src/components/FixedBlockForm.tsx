@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type FixedBlock } from '../lib/api.js';
 import { FieldError } from './FieldError.js';
+import { useBlocks } from '../hooks/useBlocks.js';
+import { formatTimeRange12h } from '../lib/time.js';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -167,7 +169,7 @@ function BlockRow({ block }: { block: FixedBlock }) {
       <div>
         <span className="font-medium text-gray-800">{block.name}</span>
         <span className="text-sm text-gray-500 ml-2">
-          {DAY_NAMES[block.dayOfWeek]} {block.startTime}–{block.endTime}
+          {DAY_NAMES[block.dayOfWeek]} {formatTimeRange12h(block.startTime, block.endTime)}
         </span>
       </div>
       <div className="flex items-center gap-1">
@@ -196,7 +198,7 @@ function BlockRow({ block }: { block: FixedBlock }) {
 
 export function FixedBlockForm() {
   const qc = useQueryClient();
-  const { data: blocks } = useQuery({ queryKey: ['blocks'], queryFn: api.blocks.list });
+  const { data: blocks } = useBlocks();
   const createBlock = useMutation({
     mutationFn: api.blocks.create,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['blocks'] }),

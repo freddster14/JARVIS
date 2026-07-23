@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useSchedule, useUpdateItemStatus } from '../hooks/useSchedule.js';
-import type { ScheduleItem } from '../lib/api.js';
+import { useBlocks } from '../hooks/useBlocks.js';
+import type { ScheduleItem, FixedBlock } from '../lib/api.js';
+import { formatTimeRange12h } from '../lib/time.js';
 
 function nowMinutes(): number {
   const d = new Date();
@@ -21,10 +23,15 @@ function humanizeUntil(mins: number): string {
   return m === 0 ? `in ${h}h` : `in ${h}h ${m}m`;
 }
 
+type DayEntry =
+  | { kind: 'task'; startTime: string; item: ScheduleItem }
+  | { kind: 'block'; startTime: string; block: FixedBlock };
+
 export function TodayPanel() {
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
-  const { data: items, isLoading } = useSchedule(today);
+  const { data: items, isLoading: itemsLoading } = useSchedule(today);
+  const { data: blocks, isLoading: blocksLoading } = useBlocks();
   const { mutate: updateStatus } = useUpdateItemStatus();
 
   // Re-render every 30s so "time until" and current-task state stay fresh.
@@ -34,7 +41,7 @@ export function TodayPanel() {
     return () => clearInterval(id);
   }, []);
 
-  if (isLoading) {
+  if (itemsLoading || blocksLoading) {
     return <div className="text-gray-400 text-sm py-6 text-center">Loading today…</div>;
   }
 
@@ -42,7 +49,15 @@ export function TodayPanel() {
     .filter((i) => i.date.startsWith(todayStr))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  if (todayItems.length === 0) {
+  const todayDayOfWeek = today.getDay();
+  const dayEntries: DayEntry[] = [
+    ...todayItems.map((item): DayEntry => ({ kind: 'task', startTime: item.startTime, item })),
+    ...(blocks ?? [])
+      .filter((b) => b.dayOfWeek === todayDayOfWeek)
+      .map((block): DayEntry => ({ kind: 'block', startTime: block.startTime, block })),
+  ].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  if (dayEntries.length === 0) {
     return (
       <div className="text-sm text-gray-500">
         Nothing scheduled for today. Generate a schedule below to get started.
@@ -87,7 +102,23 @@ export function TodayPanel() {
       )}
 
       <ol className="space-y-1.5">
-        {todayItems.map((item) => {
+        {dayEntries.map((entry) => {
+          if (entry.kind === 'block') {
+            return (
+              <li
+                key={`block-${entry.block.id}`}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm border border-dashed border-gray-200"
+              >
+                <span className="text-xs font-mono text-gray-400 w-28 shrink-0">
+                  {formatTimeRange12h(entry.block.startTime, entry.block.endTime)}
+                </span>
+                <span className="flex-1 truncate text-gray-500">{entry.block.name}</span>
+                <span className="text-xs text-gray-300 shrink-0">fixed</span>
+              </li>
+            );
+          }
+
+          const item = entry.item;
           const isFocus = item === focus;
           const past = timeToMinutes(item.endTime) <= cur;
           return (
@@ -97,8 +128,8 @@ export function TodayPanel() {
                 isFocus ? 'bg-indigo-50 ring-1 ring-indigo-200' : past ? 'opacity-50' : ''
               }`}
             >
-              <span className="text-xs font-mono text-gray-400 w-24 shrink-0">
-                {item.startTime}–{item.endTime}
+              <span className="text-xs font-mono text-gray-400 w-28 shrink-0">
+                {formatTimeRange12h(item.startTime, item.endTime)}
               </span>
               <span
                 className={`flex-1 truncate ${
@@ -142,7 +173,7 @@ function FocusCard({
         <div className="min-w-0">
           <h3 className="text-xl font-bold truncate">{item.task.name}</h3>
           <p className="text-indigo-100 text-sm">
-            {item.startTime}–{item.endTime}
+            {formatTimeRange12h(item.startTime, item.endTime)}
             {!isCurrent && <span className="ml-2 text-indigo-200">· {humanizeUntil(minutesUntil)}</span>}
           </p>
         </div>

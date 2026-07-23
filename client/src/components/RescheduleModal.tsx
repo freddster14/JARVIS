@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { useRescheduleItem } from '../hooks/useSchedule.js';
 import type { ScheduleItem } from '../lib/api.js';
+import { formatTime12h } from '../lib/time.js';
 
 function toMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -92,7 +93,7 @@ export function RescheduleModal({ item, weekStart, onClose }: Props) {
               />
             </div>
             <div className={`text-sm pb-2 ${pastMidnight && startTouched ? 'text-red-500' : 'text-gray-400'}`}>
-              → {endTime}
+              → {formatTime12h(endTime)}
             </div>
           </div>
           {(startError || endError) && (
