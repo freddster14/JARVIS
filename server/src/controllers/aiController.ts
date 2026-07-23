@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { generateWeeklySchedule, generateWeeklyReview, generateScheduleTip } from '../services/claude.js';
+import { generateWeeklySchedule, generateWeeklyReview, generateScheduleTip, type TipAction } from '../services/claude.js';
 import { getMondayOfWeek, getWeekDates, computeWeekCapacity } from '../services/scheduler.js';
 import { subWeeks, startOfWeek, format } from 'date-fns';
 
@@ -104,15 +105,35 @@ export async function generateSchedule(req: Request, res: Response) {
     });
 
     let tip: string | undefined;
+    let tipId: string | undefined;
+    let tipActions: TipAction[] = [];
     if (created.count > 0) {
       try {
-        tip = await generateScheduleTip({ scheduleItems, tasks, fixedBlocks });
+        // createMany doesn't return rows, and the tip needs real DB ids to
+        // reference in its suggested actions — re-fetch what was just saved.
+        const savedItems = await prisma.scheduleItem.findMany({
+          where: { date: { gte: weekStartDate, lt: weekEnd } },
+        });
+        const tipResult = await generateScheduleTip({ scheduleItems: savedItems, tasks, fixedBlocks });
+        tip = tipResult.tip;
+        tipActions = tipResult.actions;
+        if (tip) {
+          const saved = await prisma.scheduleTip.create({
+            data: {
+              weekStart: weekStartDate,
+              text: tip,
+              actions: tipActions.length ? (tipActions as unknown as Prisma.InputJsonValue) : undefined,
+              status: 'unread',
+            },
+          });
+          tipId = saved.id;
+        }
       } catch (err) {
         console.error('[AI] Schedule tip generation failed (non-fatal):', err);
       }
     }
 
-    res.json({ created: created.count, weekStart: weekStartStr, capacity, tip });
+    res.json({ created: created.count, weekStart: weekStartStr, capacity, tip, tipId, tipActions });
   } catch (err) {
     console.error('[AI] Schedule generation failed:', err);
     res.status(500).json({ error: 'Failed to generate schedule. Check server logs.' });

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { format, addWeeks, subWeeks, startOfWeek } from 'date-fns';
 import { useWeekProgress, useHistory, useWeeklyReview } from '../hooks/useStats.js';
-import type { TaskProgress, HistoryWeek, WeeklyReview } from '../lib/api.js';
+import { useTips, useApplyTip, useAcknowledgeTip, useRecheckTip, useDeleteTip } from '../hooks/useTips.js';
+import type { TaskProgress, HistoryWeek, WeeklyReview, Tip, TipRecheckResult } from '../lib/api.js';
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
@@ -48,6 +49,134 @@ function TaskRow({ task }: { task: TaskProgress }) {
         {task.scheduled > 0 && <span>{pct(task.completionRate)} completion</span>}
       </div>
     </div>
+  );
+}
+
+function TipCard({ tip }: { tip: Tip }) {
+  const { mutate: applyTip, isPending: isApplying } = useApplyTip();
+  const { mutate: acknowledgeTip, isPending: isAcking } = useAcknowledgeTip();
+  const { mutate: recheckTip, isPending: isRechecking } = useRecheckTip();
+  const { mutate: deleteTip, isPending: isDeleting } = useDeleteTip();
+  const [applyMsg, setApplyMsg] = useState<string | null>(null);
+  const [recheckResult, setRecheckResult] = useState<TipRecheckResult | null>(null);
+
+  const isUnread = tip.status === 'unread';
+  const hasActions = (tip.actions?.length ?? 0) > 0;
+
+  return (
+    <div
+      className={`rounded-lg border px-4 py-3 text-sm space-y-2 ${
+        isUnread ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className={isUnread ? 'text-indigo-800' : 'text-gray-600'}>
+          {isUnread && '💡 '}
+          {tip.text}
+        </p>
+        <span className="text-xs text-gray-400 shrink-0">{format(new Date(tip.createdAt), 'MMM d')}</span>
+      </div>
+
+      {applyMsg && <p className="text-xs text-green-700">✓ {applyMsg}</p>}
+      {recheckResult && (
+        <p className={`text-xs ${recheckResult.stillApplicable ? 'text-amber-700' : 'text-gray-500'}`}>
+          {recheckResult.stillApplicable ? '⚠ Still applicable — ' : 'No longer applicable — '}
+          {recheckResult.explanation}
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {isUnread ? (
+          <>
+            {hasActions && (
+              <button
+                onClick={() =>
+                  applyTip(tip.id, {
+                    onSuccess: (r) =>
+                      setApplyMsg(
+                        `Moved ${r.applied} session${r.applied === 1 ? '' : 's'}` +
+                          (r.skipped ? ` — skipped ${r.skipped} (conflict or already gone).` : '.')
+                      ),
+                  })
+                }
+                disabled={isApplying}
+                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+              >
+                {isApplying ? 'Applying…' : `Automate (${tip.actions!.length})`}
+              </button>
+            )}
+            <button
+              onClick={() => acknowledgeTip(tip.id)}
+              disabled={isAcking}
+              className="px-3 py-1.5 text-indigo-700 text-xs font-medium hover:underline disabled:opacity-50"
+            >
+              Got it
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => recheckTip(tip.id, { onSuccess: setRecheckResult })}
+              disabled={isRechecking}
+              className="px-3 py-1.5 border rounded-lg text-xs font-medium hover:bg-gray-100 disabled:opacity-50 transition"
+            >
+              {isRechecking ? 'Checking…' : 'Re-check with AI'}
+            </button>
+            <button
+              onClick={() => deleteTip(tip.id)}
+              disabled={isDeleting}
+              className="px-3 py-1.5 text-gray-400 text-xs font-medium hover:text-red-500 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TipsSection() {
+  const { data: tips } = useTips();
+  const [showHistory, setShowHistory] = useState(false);
+
+  const unread = (tips ?? []).filter((t) => t.status === 'unread');
+  const history = (tips ?? []).filter((t) => t.status === 'acknowledged');
+
+  if (!tips?.length) return null;
+
+  return (
+    <section className="bg-white rounded-xl shadow p-5 space-y-3">
+      <h2 className="font-semibold text-lg text-gray-800">Schedule Tips</h2>
+
+      {unread.length === 0 ? (
+        <p className="text-sm text-gray-400">No new tips right now — generate a schedule to get one.</p>
+      ) : (
+        <div className="space-y-2">
+          {unread.map((t) => (
+            <TipCard key={t.id} tip={t} />
+          ))}
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowHistory((s) => !s)}
+            className="text-xs text-indigo-600 hover:underline"
+          >
+            {showHistory ? 'Hide' : 'Show'} history ({history.length})
+          </button>
+          {showHistory && (
+            <div className="space-y-2 mt-2">
+              {history.map((t) => (
+                <TipCard key={t.id} tip={t} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -196,6 +325,8 @@ export function Insights() {
               <StatCard label="Pending" value={String(overall.totalPending)} sub={`${overall.totalSkipped} skipped`} />
             </div>
           )}
+
+          <TipsSection />
 
           <section className="bg-white rounded-xl shadow p-5">
             <h2 className="font-semibold text-lg text-gray-800 mb-2">Weekly Goal Progress</h2>

@@ -86,3 +86,15 @@ model DailyWakeLog {
   wakeTime String
   source   String
 }
+
+/// A tip generated after a weekly schedule is created, optionally paired with
+/// concrete reschedule actions the user can apply with one click.
+model ScheduleTip {
+  id        String   @id @default(cuid())
+  weekStart DateTime
+  text      String
+  /// TipAction[] — { scheduleItemId, date, startTime, endTime } — null if not mechanically actionable.
+  actions   Json?
+  status    String   @default("unread")
+  createdAt DateTime @default(now())
+}

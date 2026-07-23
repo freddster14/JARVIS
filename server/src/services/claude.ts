@@ -246,47 +246,189 @@ export async function generateEncouragement(params: {
   return text?.type === 'text' ? text.text.trim() : `${taskName} is coming up in ${minutesUntil} minutes. You've got this.`;
 }
 
-export async function generateScheduleTip(params: {
-  scheduleItems: ScheduleInput[];
-  tasks: Task[];
-  fixedBlocks: FixedBlock[];
-}): Promise<string> {
-  const { scheduleItems, tasks, fixedBlocks } = params;
-  const taskNameById = new Map(tasks.map((t) => [t.id, t.name]));
+export interface TipAction {
+  scheduleItemId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
 
+export interface ScheduleTipResult {
+  tip: string;
+  actions: TipAction[];
+}
+
+interface SavedScheduleItem {
+  id: string;
+  taskId: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+}
+
+function buildDayByDayScheduleText(
+  scheduleItems: SavedScheduleItem[],
+  tasks: Task[],
+  fixedBlocks: FixedBlock[]
+): string {
+  const taskNameById = new Map(tasks.map((t) => [t.id, t.name]));
   const byDate = new Map<string, string[]>();
   for (const item of [...scheduleItems].sort((a, b) => a.startTime.localeCompare(b.startTime))) {
-    const lines = byDate.get(item.date) ?? [];
-    lines.push(`${item.startTime}-${item.endTime} ${taskNameById.get(item.taskId) ?? 'Task'}`);
-    byDate.set(item.date, lines);
+    const dateStr = item.date.toISOString().slice(0, 10);
+    const lines = byDate.get(dateStr) ?? [];
+    lines.push(`[id: ${item.id}] ${item.startTime}-${item.endTime} ${taskNameById.get(item.taskId) ?? 'Task'}`);
+    byDate.set(dateStr, lines);
   }
   for (const b of fixedBlocks) {
     for (const [date, lines] of byDate) {
       const dow = new Date(date).getDay();
-      if (b.dayOfWeek === dow) lines.push(`${b.startTime}-${b.endTime} ${b.name} [fixed]`);
+      const applies = b.recurring ? b.dayOfWeek === dow : b.date?.toISOString().slice(0, 10) === date;
+      if (applies) lines.push(`${b.startTime}-${b.endTime} ${b.name} [fixed, not movable]`);
     }
   }
-
-  const dayText = [...byDate.entries()]
+  return [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, lines]) => `${date}:\n${lines.sort().join('\n')}`)
     .join('\n\n');
+}
+
+const tipOutputTool: Anthropic.Tool = {
+  name: 'output_tip',
+  description: 'Emit a schedule tip with optional concrete reschedule actions that would address it',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      tip: {
+        type: 'string',
+        description: 'One short, specific, actionable tip (max 25 words), or a brief note that the week looks balanced',
+      },
+      actions: {
+        type: 'array',
+        description:
+          'Concrete reschedule moves using REAL [id: ...] values from the provided schedule that would mechanically address the tip. Empty array if the tip is general advice that is not a schedule edit (e.g. "get more sleep").',
+        items: {
+          type: 'object',
+          properties: {
+            scheduleItemId: { type: 'string', description: 'The id from [id: ...] of the item to move' },
+            date: { type: 'string', description: 'New ISO date e.g. 2026-07-26' },
+            startTime: { type: 'string', description: 'New 24h start time e.g. 10:00' },
+            endTime: { type: 'string', description: 'New 24h end time e.g. 10:30' },
+          },
+          required: ['scheduleItemId', 'date', 'startTime', 'endTime'],
+        },
+      },
+    },
+    required: ['tip', 'actions'],
+  },
+};
+
+export async function generateScheduleTip(params: {
+  scheduleItems: SavedScheduleItem[];
+  tasks: Task[];
+  fixedBlocks: FixedBlock[];
+}): Promise<ScheduleTipResult> {
+  const { scheduleItems, tasks, fixedBlocks } = params;
+  const dayText = buildDayByDayScheduleText(scheduleItems, tasks, fixedBlocks);
 
   const response = await client.messages.create({
     model: 'claude-opus-4-8',
-    max_tokens: 150,
+    max_tokens: 500,
+    tools: [tipOutputTool],
+    tool_choice: { type: 'tool', name: 'output_tip' },
     messages: [
       {
         role: 'user',
-        content: `You are JARVIS. Here is a week's generated schedule (times, task names, [fixed] = unavailable commitments):
+        content: `You are JARVIS. Here is a week's generated schedule. Each schedulable item shows its [id: ...]; fixed blocks have no id and cannot be moved.
 
 ${dayText || 'No items were scheduled this week.'}
 
-Give ONE short, specific, actionable tip (max 25 words) to make this schedule more realistic or sustainable — e.g. an overloaded day, missing buffer time, or over-reliance on evenings. Be concrete, not generic. If the week genuinely looks well-balanced, say so briefly instead of inventing a problem. Reply with just the tip, no preamble.`,
+Give ONE short, specific, actionable tip (max 25 words) to make this schedule more realistic or sustainable — e.g. an overloaded day, missing buffer time after a long fixed block, or over-reliance on evenings. Be concrete, not generic. If the week genuinely looks well-balanced, say so briefly instead of inventing a problem.
+
+If — and only if — the tip describes a concrete, mechanical fix (like moving one or two specific sessions to a different day/time), also propose it as 1-3 actions using the real [id: ...] values and a date/time that doesn't conflict with anything else already on the schedule. If the tip is general advice that isn't a schedule edit, leave actions empty.
+
+Call the output_tip tool.`,
       },
     ],
   });
 
-  const text = response.content.find((b) => b.type === 'text');
-  return text?.type === 'text' ? text.text.trim() : '';
+  const toolUse = response.content.find((b) => b.type === 'tool_use');
+  if (!toolUse || toolUse.type !== 'tool_use') return { tip: '', actions: [] };
+  const result = toolUse.input as ScheduleTipResult;
+  return { tip: result.tip ?? '', actions: result.actions ?? [] };
+}
+
+export interface TipRecheckResult {
+  stillApplicable: boolean;
+  explanation: string;
+  actions: TipAction[];
+}
+
+const recheckOutputTool: Anthropic.Tool = {
+  name: 'output_recheck',
+  description: 'Emit whether a past tip is still applicable to the current schedule',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      stillApplicable: {
+        type: 'boolean',
+        description: 'True only if the situation the tip described still exists in the CURRENT schedule',
+      },
+      explanation: { type: 'string', description: 'One short sentence explaining the verdict' },
+      actions: {
+        type: 'array',
+        description: 'If still applicable and mechanically fixable, 1-3 actions using real [id: ...] values from the CURRENT schedule. Otherwise empty.',
+        items: {
+          type: 'object',
+          properties: {
+            scheduleItemId: { type: 'string' },
+            date: { type: 'string' },
+            startTime: { type: 'string' },
+            endTime: { type: 'string' },
+          },
+          required: ['scheduleItemId', 'date', 'startTime', 'endTime'],
+        },
+      },
+    },
+    required: ['stillApplicable', 'explanation', 'actions'],
+  },
+};
+
+export async function recheckScheduleTip(params: {
+  originalTip: string;
+  scheduleItems: SavedScheduleItem[];
+  tasks: Task[];
+  fixedBlocks: FixedBlock[];
+}): Promise<TipRecheckResult> {
+  const { originalTip, scheduleItems, tasks, fixedBlocks } = params;
+  const dayText = buildDayByDayScheduleText(scheduleItems, tasks, fixedBlocks);
+
+  const response = await client.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: 500,
+    tools: [recheckOutputTool],
+    tool_choice: { type: 'tool', name: 'output_recheck' },
+    messages: [
+      {
+        role: 'user',
+        content: `You are JARVIS. Here is a tip that was previously given about a schedule: "${originalTip}"
+
+Here is the CURRENT schedule for that same week (it may have changed since the tip was written — items may have moved, been completed, or been removed):
+
+${dayText || 'Nothing is currently scheduled this week.'}
+
+Decide: is this tip still applicable to the CURRENT schedule? If the situation it described no longer exists, it is NOT still applicable. If it is still applicable and mechanically fixable, propose 1-3 actions using real [id: ...] values from the CURRENT schedule. Call the output_recheck tool.`,
+      },
+    ],
+  });
+
+  const toolUse = response.content.find((b) => b.type === 'tool_use');
+  if (!toolUse || toolUse.type !== 'tool_use') {
+    return { stillApplicable: false, explanation: 'Could not re-evaluate this tip.', actions: [] };
+  }
+  const result = toolUse.input as TipRecheckResult;
+  return {
+    stillApplicable: Boolean(result.stillApplicable),
+    explanation: result.explanation ?? '',
+    actions: result.actions ?? [],
+  };
 }

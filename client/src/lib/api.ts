@@ -96,6 +96,28 @@ export interface WeekCapacity {
   overCommitted: boolean;
 }
 
+export interface TipAction {
+  scheduleItemId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface Tip {
+  id: string;
+  weekStart: string;
+  text: string;
+  actions: TipAction[] | null;
+  status: 'unread' | 'acknowledged';
+  createdAt: string;
+}
+
+export interface TipRecheckResult {
+  stillApplicable: boolean;
+  explanation: string;
+  actions: TipAction[];
+}
+
 export interface HistoryWeek {
   weekStart: string;
   scheduled: number;
@@ -194,6 +216,8 @@ export const api = {
         capacity: WeekCapacity;
         needsConfirmation?: boolean;
         tip?: string;
+        tipId?: string;
+        tipActions?: TipAction[];
       }>('/api/ai/generate-schedule', {
         method: 'POST',
         body: JSON.stringify({ weekStart, force }),
@@ -209,5 +233,18 @@ export const api = {
     today: () => request<TodayStats>('/api/stats/today'),
     week: (weekStart: string) => request<WeekProgress>(`/api/stats/week?weekStart=${weekStart}`),
     history: (weeks = 8) => request<{ weeks: number; history: HistoryWeek[] }>(`/api/stats/history?weeks=${weeks}`),
+  },
+
+  tips: {
+    list: (status?: 'unread' | 'acknowledged') =>
+      request<Tip[]>(`/api/tips${status ? `?status=${status}` : ''}`),
+    acknowledge: (id: string) =>
+      request<Tip>(`/api/tips/${id}/acknowledge`, { method: 'PATCH' }),
+    apply: (id: string) =>
+      request<{ applied: number; skipped: number; details: string[] }>(`/api/tips/${id}/apply`, { method: 'POST' }),
+    recheck: (id: string) =>
+      request<TipRecheckResult>(`/api/tips/${id}/recheck`, { method: 'POST' }),
+    delete: (id: string) =>
+      request<void>(`/api/tips/${id}`, { method: 'DELETE' }),
   },
 };

@@ -5,6 +5,7 @@ import { TodayPanel } from '../components/TodayPanel.js';
 import { StatsBar } from '../components/StatsBar.js';
 import { useGenerateSchedule, useClearWeek } from '../hooks/useSchedule.js';
 import { useTasks } from '../hooks/useTasks.js';
+import { useApplyTip, useAcknowledgeTip } from '../hooks/useTips.js';
 
 function formatHours(minutes: number): string {
   const hours = minutes / 60;
@@ -23,6 +24,10 @@ export function Dashboard() {
   } = useGenerateSchedule();
   const { mutate: clearWeek, isPending: isClearing } = useClearWeek();
   const { data: tasks } = useTasks();
+  const { mutate: applyTip, isPending: isApplyingTip } = useApplyTip();
+  const { mutate: acknowledgeTip, isPending: isAcknowledgingTip } = useAcknowledgeTip();
+  const [tipHandled, setTipHandled] = useState(false);
+  const [tipResultMsg, setTipResultMsg] = useState<string | null>(null);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekStartStr = format(weekStart, 'yyyy-MM-dd');
@@ -33,7 +38,25 @@ export function Dashboard() {
   useEffect(() => {
     setClearArmed(false);
     resetGenerate();
+    setTipHandled(false);
+    setTipResultMsg(null);
   }, [weekStartStr]);
+
+  function handleAutomateTip(tipId: string) {
+    applyTip(tipId, {
+      onSuccess: (result) => {
+        setTipHandled(true);
+        setTipResultMsg(
+          `Moved ${result.applied} session${result.applied === 1 ? '' : 's'}` +
+            (result.skipped ? ` — skipped ${result.skipped} (conflict or already gone).` : '.')
+        );
+      },
+    });
+  }
+
+  function handleAcknowledgeTip(tipId: string) {
+    acknowledgeTip(tipId, { onSuccess: () => setTipHandled(true) });
+  }
 
   function handleGenerate(force = false) {
     generateSchedule({ weekStart: weekStartStr, force });
@@ -138,9 +161,35 @@ export function Dashboard() {
         </div>
       )}
 
-      {generateResult?.tip && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-indigo-800 text-sm">
-          💡 {generateResult.tip}
+      {generateResult?.tip && !tipHandled && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-indigo-800 text-sm space-y-2">
+          <p>💡 {generateResult.tip}</p>
+          <div className="flex gap-2">
+            {generateResult.tipId && generateResult.tipActions && generateResult.tipActions.length > 0 && (
+              <button
+                onClick={() => handleAutomateTip(generateResult.tipId!)}
+                disabled={isApplyingTip}
+                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+              >
+                {isApplyingTip ? 'Applying…' : `Automate (${generateResult.tipActions.length})`}
+              </button>
+            )}
+            {generateResult.tipId && (
+              <button
+                onClick={() => handleAcknowledgeTip(generateResult.tipId!)}
+                disabled={isAcknowledgingTip}
+                className="px-3 py-1.5 text-indigo-700 text-xs font-medium hover:underline disabled:opacity-50"
+              >
+                Got it
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tipResultMsg && (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-green-700 text-sm">
+          ✓ {tipResultMsg}
         </div>
       )}
 
