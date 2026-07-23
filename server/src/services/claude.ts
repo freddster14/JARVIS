@@ -86,16 +86,15 @@ PERFORMANCE HISTORY (last 4 weeks):
 ${history}
 
 SCHEDULING RULES:
-1. Each day's available window starts at the user's wake time and ends at their first fixed block (or end of day if none).
-2. Within each available window, fit task sessions AND decide where a meal break belongs:
-   - Window < 3 hours: skip meal break
-   - Window 3–5 hours: one 20-min break somewhere in the middle
-   - Window > 5 hours: one 30-min meal break placed ~2 hours before the first fixed block (or midpoint if no fixed block)
-3. Leave at least 10 minutes breathing room between consecutive tasks.
-4. If a task is behind its weekly goal based on history, give it higher priority this week.
-5. Spread tasks across the week — don't front-load Monday with everything.
-6. Respect task durations exactly (startTime + durationMin = endTime).
-7. Never schedule overlapping time slots.
+1. Find EVERY free window in each day, not just the first one: start at the user's wake time, then each fixed block carves out unavailable time. A day can have several free windows — before the first fixed block, between fixed blocks, and after the last one until end of day (treat 23:00 as end of day if no later fixed block exists). Tasks can go in any of these windows, including evenings after work or between commitments.
+2. Reserve a morning routine of 25–30 minutes for showering/getting ready immediately after wake time, before any task or meal is scheduled.
+3. Reserve realistic meal breaks based on actual time of day, not just window length — a ~20 min breakfast break if a free window covers 07:00–09:00, a ~30 min lunch break if a free window covers 12:00–13:30, and a ~30-45 min dinner break if a free window covers 18:00–20:00. A single day can and should have multiple meal breaks if its free windows span that many mealtimes — don't collapse them into one.
+4. Leave at least 10 minutes breathing room between consecutive tasks and breaks.
+5. If a task is behind its weekly goal based on history, give it higher priority this week.
+6. Spread tasks across the week — don't front-load Monday with everything.
+7. Respect task durations exactly (startTime + durationMin = endTime).
+8. Never schedule overlapping time slots, and never schedule inside a fixed block.
+9. Don't schedule anything after 23:00.
 
 Call the output_schedule tool with your complete schedule.`;
 }
