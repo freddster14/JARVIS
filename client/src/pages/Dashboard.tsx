@@ -6,10 +6,21 @@ import { StatsBar } from '../components/StatsBar.js';
 import { useGenerateSchedule, useClearWeek } from '../hooks/useSchedule.js';
 import { useTasks } from '../hooks/useTasks.js';
 
+function formatHours(minutes: number): string {
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
+}
+
 export function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [clearArmed, setClearArmed] = useState(false);
-  const { mutate: generateSchedule, isPending: isGenerating, error: generateError } = useGenerateSchedule();
+  const {
+    mutate: generateSchedule,
+    isPending: isGenerating,
+    error: generateError,
+    data: generateResult,
+    reset: resetGenerate,
+  } = useGenerateSchedule();
   const { mutate: clearWeek, isPending: isClearing } = useClearWeek();
   const { data: tasks } = useTasks();
 
@@ -18,11 +29,14 @@ export function Dashboard() {
   const weekLabel = `Week of ${format(weekStart, 'MMM d, yyyy')}`;
   const isCurrentWeek = weekStartStr === format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
-  // Disarm the clear button if the user navigates away
-  useEffect(() => { setClearArmed(false); }, [weekStartStr]);
+  // Disarm the clear button and drop any stale confirm/tip banner when navigating weeks
+  useEffect(() => {
+    setClearArmed(false);
+    resetGenerate();
+  }, [weekStartStr]);
 
-  function handleGenerate() {
-    generateSchedule(weekStartStr);
+  function handleGenerate(force = false) {
+    generateSchedule({ weekStart: weekStartStr, force });
   }
 
   function handleClear() {
@@ -83,7 +97,7 @@ export function Dashboard() {
             </button>
 
             <button
-              onClick={handleGenerate}
+              onClick={() => handleGenerate()}
               disabled={isGenerating || !tasks?.length}
               className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition whitespace-nowrap"
             >
@@ -96,6 +110,37 @@ export function Dashboard() {
       {generateError && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">
           {(generateError as Error).message}
+        </div>
+      )}
+
+      {generateResult?.needsConfirmation && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-800 text-sm space-y-2">
+          <p>
+            This week needs about <strong>{formatHours(generateResult.capacity.requiredMinutes)}</strong> of task
+            time, but only <strong>{formatHours(generateResult.capacity.freeMinutes)}</strong> is free — some tasks
+            may not fit at their full weekly goal.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleGenerate(true)}
+              disabled={isGenerating}
+              className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:opacity-50 transition"
+            >
+              {isGenerating ? 'Generating…' : 'Generate anyway'}
+            </button>
+            <button
+              onClick={() => resetGenerate()}
+              className="px-3 py-1.5 text-amber-700 text-xs font-medium hover:underline"
+            >
+              Never mind
+            </button>
+          </div>
+        </div>
+      )}
+
+      {generateResult?.tip && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-indigo-800 text-sm">
+          💡 {generateResult.tip}
         </div>
       )}
 

@@ -241,3 +241,48 @@ export async function generateEncouragement(params: {
   const text = response.content.find((b) => b.type === 'text');
   return text?.type === 'text' ? text.text.trim() : `${taskName} is coming up in ${minutesUntil} minutes. You've got this.`;
 }
+
+export async function generateScheduleTip(params: {
+  scheduleItems: ScheduleInput[];
+  tasks: Task[];
+  fixedBlocks: FixedBlock[];
+}): Promise<string> {
+  const { scheduleItems, tasks, fixedBlocks } = params;
+  const taskNameById = new Map(tasks.map((t) => [t.id, t.name]));
+
+  const byDate = new Map<string, string[]>();
+  for (const item of [...scheduleItems].sort((a, b) => a.startTime.localeCompare(b.startTime))) {
+    const lines = byDate.get(item.date) ?? [];
+    lines.push(`${item.startTime}-${item.endTime} ${taskNameById.get(item.taskId) ?? 'Task'}`);
+    byDate.set(item.date, lines);
+  }
+  for (const b of fixedBlocks) {
+    for (const [date, lines] of byDate) {
+      const dow = new Date(date).getDay();
+      if (b.dayOfWeek === dow) lines.push(`${b.startTime}-${b.endTime} ${b.name} [fixed]`);
+    }
+  }
+
+  const dayText = [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, lines]) => `${date}:\n${lines.sort().join('\n')}`)
+    .join('\n\n');
+
+  const response = await client.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: 150,
+    messages: [
+      {
+        role: 'user',
+        content: `You are JARVIS. Here is a week's generated schedule (times, task names, [fixed] = unavailable commitments):
+
+${dayText || 'No items were scheduled this week.'}
+
+Give ONE short, specific, actionable tip (max 25 words) to make this schedule more realistic or sustainable — e.g. an overloaded day, missing buffer time, or over-reliance on evenings. Be concrete, not generic. If the week genuinely looks well-balanced, say so briefly instead of inventing a problem. Reply with just the tip, no preamble.`,
+      },
+    ],
+  });
+
+  const text = response.content.find((b) => b.type === 'text');
+  return text?.type === 'text' ? text.text.trim() : '';
+}

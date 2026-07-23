@@ -7,6 +7,8 @@ import {
   isValidSlot,
   getWeekDates,
   getMondayOfWeek,
+  computeFreeMinutes,
+  computeWeekCapacity,
 } from '../src/services/scheduler.js';
 
 describe('timeToMinutes / minutesToTime', () => {
@@ -84,6 +86,80 @@ describe('isValidSlot', () => {
 
   it('rejects inverted times', () => {
     expect(isValidSlot({ startTime: '10:00', endTime: '09:00' })).toBe(false);
+  });
+});
+
+describe('computeFreeMinutes', () => {
+  it('returns the full span when there are no blocks', () => {
+    expect(computeFreeMinutes('07:00', [])).toBe(timeToMinutes('23:00') - timeToMinutes('07:00'));
+  });
+
+  it('subtracts a single block within range', () => {
+    expect(computeFreeMinutes('07:00', [{ startTime: '09:00', endTime: '17:00' }])).toBe(
+      (timeToMinutes('23:00') - timeToMinutes('07:00')) - (timeToMinutes('17:00') - timeToMinutes('09:00'))
+    );
+  });
+
+  it('merges overlapping blocks instead of double-subtracting', () => {
+    const withOverlap = computeFreeMinutes('07:00', [
+      { startTime: '09:00', endTime: '13:00' },
+      { startTime: '12:00', endTime: '17:00' },
+    ]);
+    const withoutOverlap = computeFreeMinutes('07:00', [{ startTime: '09:00', endTime: '17:00' }]);
+    expect(withOverlap).toBe(withoutOverlap);
+  });
+
+  it('clamps blocks that start before wake time or end after day end', () => {
+    expect(computeFreeMinutes('09:00', [{ startTime: '06:00', endTime: '10:00' }])).toBe(
+      (timeToMinutes('23:00') - timeToMinutes('09:00')) - (timeToMinutes('10:00') - timeToMinutes('09:00'))
+    );
+  });
+
+  it('returns 0 when wake time is at or after day end', () => {
+    expect(computeFreeMinutes('23:00', [], '23:00')).toBe(0);
+    expect(computeFreeMinutes('23:30', [], '23:00')).toBe(0);
+  });
+});
+
+describe('computeWeekCapacity', () => {
+  const weekDays = Array.from({ length: 7 }, (_, i) => ({
+    dateStr: `2026-06-2${i}`,
+    dayOfWeek: (i + 1) % 7, // Mon..Sun -> 1,2,3,4,5,6,0
+    wakeTime: '07:00',
+  }));
+
+  it('flags overCommitted when required exceeds free time', () => {
+    // 16h free/day * 7 days = 112h free; this task alone demands 160h.
+    const result = computeWeekCapacity({
+      weekDays,
+      fixedBlocks: [],
+      skippedDates: [],
+      tasks: [{ durationMin: 480, weeklyGoal: 20 }],
+    });
+    expect(result.overCommitted).toBe(true);
+    expect(result.requiredMinutes).toBe(480 * 20);
+  });
+
+  it('is not overCommitted for a light task load', () => {
+    const result = computeWeekCapacity({
+      weekDays,
+      fixedBlocks: [],
+      skippedDates: [],
+      tasks: [{ durationMin: 30, weeklyGoal: 3 }],
+    });
+    expect(result.overCommitted).toBe(false);
+  });
+
+  it('excludes a fixed block on a date it has been skipped for', () => {
+    const fixedBlocks = [{ id: 'b1', dayOfWeek: 1, startTime: '09:00', endTime: '17:00' }];
+    const withoutSkip = computeWeekCapacity({ weekDays, fixedBlocks, skippedDates: [], tasks: [] });
+    const withSkip = computeWeekCapacity({
+      weekDays,
+      fixedBlocks,
+      skippedDates: [{ fixedBlockId: 'b1', dateStr: weekDays[0].dateStr }],
+      tasks: [],
+    });
+    expect(withSkip.freeMinutes).toBeGreaterThan(withoutSkip.freeMinutes);
   });
 });
 

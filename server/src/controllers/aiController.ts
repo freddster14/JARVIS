@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { generateWeeklySchedule, generateWeeklyReview } from '../services/claude.js';
-import { getMondayOfWeek } from '../services/scheduler.js';
+import { generateWeeklySchedule, generateWeeklyReview, generateScheduleTip } from '../services/claude.js';
+import { getMondayOfWeek, getWeekDates, computeWeekCapacity } from '../services/scheduler.js';
 import { subWeeks, startOfWeek, format } from 'date-fns';
 
 export async function generateSchedule(req: Request, res: Response) {
@@ -48,6 +48,29 @@ export async function generateSchedule(req: Request, res: Response) {
   }
 
   const weekStartStr = weekStartDate.toISOString().split('T')[0];
+  const force = Boolean(req.body.force);
+
+  const fallbackWakeTime = profile?.fallbackWakeTime ?? '09:00';
+  const wakeTimeByDate = new Map(
+    enrichedWakeLogs.map((w) => [w.date.toISOString().slice(0, 10), w.wakeTime])
+  );
+  const weekDays = getWeekDates(weekStartDate).map((dateStr) => ({
+    dateStr,
+    dayOfWeek: new Date(dateStr).getDay(),
+    wakeTime: wakeTimeByDate.get(dateStr) ?? fallbackWakeTime,
+  }));
+
+  const capacity = computeWeekCapacity({
+    weekDays,
+    fixedBlocks: fixedBlocks.map((b) => ({ id: b.id, dayOfWeek: b.dayOfWeek, startTime: b.startTime, endTime: b.endTime })),
+    skippedDates: blockExceptions.map((e) => ({ fixedBlockId: e.fixedBlockId, dateStr: e.date.toISOString().slice(0, 10) })),
+    tasks: tasks.map((t) => ({ durationMin: t.durationMin, weeklyGoal: t.weeklyGoal })),
+  });
+
+  if (capacity.overCommitted && !force) {
+    res.json({ weekStart: weekStartStr, capacity, needsConfirmation: true });
+    return;
+  }
 
   try {
     const scheduleItems = await generateWeeklySchedule({
@@ -73,7 +96,16 @@ export async function generateSchedule(req: Request, res: Response) {
       })),
     });
 
-    res.json({ created: created.count, weekStart: weekStartStr });
+    let tip: string | undefined;
+    if (created.count > 0) {
+      try {
+        tip = await generateScheduleTip({ scheduleItems, tasks, fixedBlocks });
+      } catch (err) {
+        console.error('[AI] Schedule tip generation failed (non-fatal):', err);
+      }
+    }
+
+    res.json({ created: created.count, weekStart: weekStartStr, capacity, tip });
   } catch (err) {
     console.error('[AI] Schedule generation failed:', err);
     res.status(500).json({ error: 'Failed to generate schedule. Check server logs.' });

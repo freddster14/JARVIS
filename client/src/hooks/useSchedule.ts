@@ -43,7 +43,10 @@ export function useRescheduleItem() {
 export function useGenerateSchedule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (weekStart?: string) => api.ai.generateSchedule(weekStart),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule'] }),
+    mutationFn: (vars: { weekStart?: string; force?: boolean }) =>
+      api.ai.generateSchedule(vars.weekStart, vars.force),
+    onSuccess: (data) => {
+      if (!data.needsConfirmation) qc.invalidateQueries({ queryKey: ['schedule'] });
+    },
   });
 }

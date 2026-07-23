@@ -88,6 +88,12 @@ export interface WeeklyReview {
   focus: string[];
 }
 
+export interface WeekCapacity {
+  requiredMinutes: number;
+  freeMinutes: number;
+  overCommitted: boolean;
+}
+
 export interface HistoryWeek {
   weekStart: string;
   scheduled: number;
@@ -179,10 +185,16 @@ export const api = {
   },
 
   ai: {
-    generateSchedule: (weekStart?: string) =>
-      request<{ created: number; weekStart: string }>('/api/ai/generate-schedule', {
+    generateSchedule: (weekStart?: string, force?: boolean) =>
+      request<{
+        created?: number;
+        weekStart: string;
+        capacity: WeekCapacity;
+        needsConfirmation?: boolean;
+        tip?: string;
+      }>('/api/ai/generate-schedule', {
         method: 'POST',
-        body: JSON.stringify({ weekStart }),
+        body: JSON.stringify({ weekStart, force }),
       }),
     weeklyReview: (weekStart?: string) =>
       request<{ weekStart: string; review: WeeklyReview }>('/api/ai/weekly-review', {

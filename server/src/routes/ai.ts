@@ -12,7 +12,15 @@ const optionalWeekStart = [
   handleValidation,
 ];
 
-router.post('/generate-schedule', optionalWeekStart, generateSchedule);
+const generateScheduleBody = [
+  body('weekStart')
+    .optional()
+    .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('weekStart must be yyyy-MM-dd'),
+  body('force').optional().isBoolean().withMessage('force must be a boolean'),
+  handleValidation,
+];
+
+router.post('/generate-schedule', generateScheduleBody, generateSchedule);
 router.post('/weekly-review', optionalWeekStart, weeklyReview);
 
 export default router;
