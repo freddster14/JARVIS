@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { useSchedule, useUpdateItemStatus } from '../hooks/useSchedule.js';
-import { useBlocks } from '../hooks/useBlocks.js';
+import { useBlocks, useSkipBlock, useUnskipBlock } from '../hooks/useBlocks.js';
 import { RescheduleModal } from './RescheduleModal.js';
 import type { ScheduleItem, FixedBlock } from '../lib/api.js';
 import { formatTimeRange12h } from '../lib/time.js';
@@ -36,6 +36,8 @@ export function WeekCalendar({ currentDate }: Props) {
   const { data: items, isLoading } = useSchedule(currentDate);
   const { data: blocks } = useBlocks();
   const { mutate: updateStatus } = useUpdateItemStatus();
+  const { mutate: skipBlock } = useSkipBlock();
+  const { mutate: unskipBlock } = useUnskipBlock();
   const [rescheduling, setRescheduling] = useState<ScheduleItem | null>(null);
   const [mobileDayIdx, setMobileDayIdx] = useState(() => todayIndexInWeek(weekStart));
 
@@ -93,26 +95,50 @@ export function WeekCalendar({ currentDate }: Props) {
     );
   }
 
-  function FixedBlockCard({ block }: { block: FixedBlock }) {
+  function FixedBlockCard({ block, dateStr }: { block: FixedBlock; dateStr: string }) {
+    const isSkipped = block.exceptions.includes(dateStr);
+
+    function toggle() {
+      if (isSkipped) unskipBlock({ id: block.id, date: dateStr });
+      else skipBlock({ id: block.id, date: dateStr });
+    }
+
+    if (isSkipped) {
+      return (
+        <button
+          onClick={toggle}
+          className="w-full text-left rounded-lg border border-dashed border-green-300 bg-green-50 px-2 py-1.5 text-xs text-green-700 select-none transition hover:bg-green-100"
+          title="Marked as a day off — tap to restore this block"
+        >
+          <div className="font-medium truncate line-through opacity-70">{block.name}</div>
+          <div className="opacity-80">Day off · tap to restore</div>
+        </button>
+      );
+    }
+
     return (
-      <div
-        className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-2 py-1.5 text-xs text-gray-500 select-none"
-        title={`${block.name} · fixed, not schedulable`}
+      <button
+        onClick={toggle}
+        className="w-full text-left rounded-lg border border-dashed border-gray-300 bg-gray-50 px-2 py-1.5 text-xs text-gray-500 select-none transition hover:bg-gray-100"
+        title={`${block.name} · fixed — tap to mark as a day off and free this time up`}
       >
         <div className="font-medium truncate">{block.name}</div>
-        <div className="opacity-70">{formatTimeRange12h(block.startTime, block.endTime)}</div>
-      </div>
+        <div className="flex items-center justify-between gap-1 opacity-70">
+          <span>{formatTimeRange12h(block.startTime, block.endTime)}</span>
+          <span className="shrink-0">fixed</span>
+        </div>
+      </button>
     );
   }
 
-  function DayEntryList({ entries }: { entries: DayEntry[] }) {
+  function DayEntryList({ entries, dateStr }: { entries: DayEntry[]; dateStr: string }) {
     return (
       <>
         {entries.map((entry) =>
           entry.kind === 'task' ? (
             <ScheduleCard key={entry.item.id} item={entry.item} />
           ) : (
-            <FixedBlockCard key={`block-${entry.block.id}`} block={entry.block} />
+            <FixedBlockCard key={`block-${entry.block.id}`} block={entry.block} dateStr={dateStr} />
           )
         )}
       </>
@@ -155,7 +181,7 @@ export function WeekCalendar({ currentDate }: Props) {
           {activeDayEntries.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-6">Nothing scheduled</p>
           ) : (
-            <DayEntryList entries={activeDayEntries} />
+            <DayEntryList entries={activeDayEntries} dateStr={activeDay.dateStr} />
           )}
         </div>
       </div>
@@ -182,7 +208,7 @@ export function WeekCalendar({ currentDate }: Props) {
                   </p>
                 </div>
                 <div className="flex flex-col gap-1 min-h-[120px]">
-                  <DayEntryList entries={entriesForDay(dateStr, date)} />
+                  <DayEntryList entries={entriesForDay(dateStr, date)} dateStr={dateStr} />
                 </div>
               </div>
             );

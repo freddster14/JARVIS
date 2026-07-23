@@ -21,12 +21,24 @@ model Task {
 }
 
 model FixedBlock {
-  id        String  @id @default(cuid())
-  name      String
-  dayOfWeek Int
-  startTime String
-  endTime   String
-  recurring Boolean @default(true)
+  id         String                @id @default(cuid())
+  name       String
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+  recurring  Boolean               @default(true)
+  exceptions FixedBlockException[]
+}
+
+/// A single date where a normally-recurring FixedBlock doesn't apply
+/// (e.g. "skip Work on 2026-07-24 because I'm off that day").
+model FixedBlockException {
+  id           String     @id @default(cuid())
+  fixedBlockId String
+  fixedBlock   FixedBlock @relation(fields: [fixedBlockId], references: [id], onDelete: Cascade)
+  date         DateTime
+
+  @@unique([fixedBlockId, date])
 }
 
 model ScheduleItem {

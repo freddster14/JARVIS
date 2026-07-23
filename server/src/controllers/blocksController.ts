@@ -4,8 +4,14 @@ import { prisma } from '../lib/prisma.js';
 export async function getBlocks(_req: Request, res: Response) {
   const blocks = await prisma.fixedBlock.findMany({
     orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    include: { exceptions: true },
   });
-  res.json(blocks);
+  res.json(
+    blocks.map(({ exceptions, ...block }) => ({
+      ...block,
+      exceptions: exceptions.map((e) => e.date.toISOString().slice(0, 10)),
+    }))
+  );
 }
 
 export async function createBlock(req: Request, res: Response) {
@@ -56,4 +62,28 @@ export async function deleteBlock(req: Request<{ id: string }>, res: Response) {
   } catch {
     res.status(404).json({ error: 'Block not found' });
   }
+}
+
+/** Marks a normally-recurring block as not applying on one specific date (e.g. a day off). */
+export async function skipBlockDate(req: Request<{ id: string }>, res: Response) {
+  const { date } = req.body as { date: string };
+  try {
+    await prisma.fixedBlockException.upsert({
+      where: { fixedBlockId_date: { fixedBlockId: req.params.id, date: new Date(date) } },
+      create: { fixedBlockId: req.params.id, date: new Date(date) },
+      update: {},
+    });
+    res.status(204).send();
+  } catch {
+    res.status(404).json({ error: 'Block not found' });
+  }
+}
+
+/** Reverses skipBlockDate — the block applies on that date again. */
+export async function unskipBlockDate(req: Request<{ id: string }>, res: Response) {
+  const { date } = req.body as { date: string };
+  await prisma.fixedBlockException.deleteMany({
+    where: { fixedBlockId: req.params.id, date: new Date(date) },
+  });
+  res.status(204).send();
 }

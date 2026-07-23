@@ -7,7 +7,7 @@ import { formatTimeRange12h } from '../lib/time.js';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-type BlockFormState = Omit<FixedBlock, 'id'>;
+type BlockFormState = Omit<FixedBlock, 'id' | 'exceptions'>;
 
 interface BlockErrors {
   name?: string;

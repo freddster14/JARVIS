@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { getBlocks, createBlock, updateBlock, deleteBlock } from '../controllers/blocksController.js';
+import {
+  getBlocks,
+  createBlock,
+  updateBlock,
+  deleteBlock,
+  skipBlockDate,
+  unskipBlockDate,
+} from '../controllers/blocksController.js';
 import { handleValidation } from '../middleware/validate.js';
 
 const router = Router();
@@ -43,9 +50,14 @@ const blockBodyPartial = [
   body('recurring').optional().isBoolean().withMessage('recurring must be a boolean'),
 ];
 
+const dateField = body('date')
+  .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('date must be YYYY-MM-DD');
+
 router.get('/', getBlocks);
 router.post('/', blockBody, handleValidation, createBlock);
 router.patch('/:id', blockBodyPartial, handleValidation, updateBlock);
 router.delete('/:id', deleteBlock);
+router.post('/:id/skip', dateField, handleValidation, skipBlockDate);
+router.delete('/:id/skip', dateField, handleValidation, unskipBlockDate);
 
 export default router;

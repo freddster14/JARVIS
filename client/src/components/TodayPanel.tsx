@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useSchedule, useUpdateItemStatus } from '../hooks/useSchedule.js';
-import { useBlocks } from '../hooks/useBlocks.js';
+import { useBlocks, useSkipBlock, useUnskipBlock } from '../hooks/useBlocks.js';
 import type { ScheduleItem, FixedBlock } from '../lib/api.js';
 import { formatTimeRange12h } from '../lib/time.js';
 
@@ -33,6 +33,8 @@ export function TodayPanel() {
   const { data: items, isLoading: itemsLoading } = useSchedule(today);
   const { data: blocks, isLoading: blocksLoading } = useBlocks();
   const { mutate: updateStatus } = useUpdateItemStatus();
+  const { mutate: skipBlock } = useSkipBlock();
+  const { mutate: unskipBlock } = useUnskipBlock();
 
   // Re-render every 30s so "time until" and current-task state stay fresh.
   const [, setTick] = useState(0);
@@ -104,16 +106,42 @@ export function TodayPanel() {
       <ol className="space-y-1.5">
         {dayEntries.map((entry) => {
           if (entry.kind === 'block') {
+            const block = entry.block;
+            const isSkipped = block.exceptions.includes(todayStr);
+            const toggle = () => {
+              if (isSkipped) unskipBlock({ id: block.id, date: todayStr });
+              else skipBlock({ id: block.id, date: todayStr });
+            };
+            if (isSkipped) {
+              return (
+                <li key={`block-${block.id}`}>
+                  <button
+                    onClick={toggle}
+                    className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm border border-dashed border-green-300 bg-green-50 text-green-700 transition hover:bg-green-100"
+                    title="Marked as a day off — tap to restore this block"
+                  >
+                    <span className="text-xs font-mono w-28 shrink-0 opacity-70">
+                      {formatTimeRange12h(block.startTime, block.endTime)}
+                    </span>
+                    <span className="flex-1 truncate text-left line-through opacity-70">{block.name}</span>
+                    <span className="text-xs shrink-0">day off</span>
+                  </button>
+                </li>
+              );
+            }
             return (
-              <li
-                key={`block-${entry.block.id}`}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm border border-dashed border-gray-200"
-              >
-                <span className="text-xs font-mono text-gray-400 w-28 shrink-0">
-                  {formatTimeRange12h(entry.block.startTime, entry.block.endTime)}
-                </span>
-                <span className="flex-1 truncate text-gray-500">{entry.block.name}</span>
-                <span className="text-xs text-gray-300 shrink-0">fixed</span>
+              <li key={`block-${block.id}`}>
+                <button
+                  onClick={toggle}
+                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm border border-dashed border-gray-200 text-gray-500 transition hover:bg-gray-50"
+                  title={`${block.name} · fixed — tap to mark as a day off and free this time up`}
+                >
+                  <span className="text-xs font-mono text-gray-400 w-28 shrink-0">
+                    {formatTimeRange12h(block.startTime, block.endTime)}
+                  </span>
+                  <span className="flex-1 truncate text-left">{block.name}</span>
+                  <span className="text-xs text-gray-300 shrink-0">fixed</span>
+                </button>
               </li>
             );
           }

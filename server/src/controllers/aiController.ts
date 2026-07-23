@@ -12,9 +12,12 @@ export async function generateSchedule(req: Request, res: Response) {
   const weekEnd = new Date(weekStartDate);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
-  const [tasks, fixedBlocks, performanceHistory, wakeLogs] = await Promise.all([
+  const [tasks, fixedBlocks, blockExceptions, performanceHistory, wakeLogs] = await Promise.all([
     prisma.task.findMany(),
     prisma.fixedBlock.findMany(),
+    prisma.fixedBlockException.findMany({
+      where: { date: { gte: weekStartDate, lt: weekEnd } },
+    }),
     prisma.completion.findMany({
       where: { weekStart: { gte: startOfWeek(subWeeks(new Date(), 4), { weekStartsOn: 1 }) } },
     }),
@@ -50,6 +53,7 @@ export async function generateSchedule(req: Request, res: Response) {
     const scheduleItems = await generateWeeklySchedule({
       tasks,
       fixedBlocks,
+      blockExceptions,
       wakeLogs: enrichedWakeLogs,
       performanceHistory,
       weekStart: weekStartStr,

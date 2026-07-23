@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { Task, FixedBlock, Completion, DailyWakeLog } from '@prisma/client';
+import type { Task, FixedBlock, FixedBlockException, Completion, DailyWakeLog } from '@prisma/client';
 
 const client = new Anthropic();
 
@@ -37,11 +37,12 @@ interface ScheduleInput {
 function buildSchedulingPrompt(params: {
   tasks: Task[];
   fixedBlocks: FixedBlock[];
+  blockExceptions: FixedBlockException[];
   wakeLogs: DailyWakeLog[];
   performanceHistory: Completion[];
   weekStart: string;
 }): string {
-  const { tasks, fixedBlocks, wakeLogs, performanceHistory, weekStart } = params;
+  const { tasks, fixedBlocks, blockExceptions, wakeLogs, performanceHistory, weekStart } = params;
 
   const taskList = tasks
     .map(
@@ -50,11 +51,22 @@ function buildSchedulingPrompt(params: {
     )
     .join('\n');
 
+  const exceptionDatesByBlock = new Map<string, string[]>();
+  for (const ex of blockExceptions) {
+    const dateStr = ex.date.toISOString().slice(0, 10);
+    const list = exceptionDatesByBlock.get(ex.fixedBlockId) ?? [];
+    list.push(dateStr);
+    exceptionDatesByBlock.set(ex.fixedBlockId, list);
+  }
+
   const blockList = fixedBlocks
-    .map(
-      (b) =>
-        `- ${b.name}: Day ${b.dayOfWeek} (0=Sun) from ${b.startTime} to ${b.endTime}`
-    )
+    .map((b) => {
+      const skippedDates = exceptionDatesByBlock.get(b.id);
+      const skipNote = skippedDates?.length
+        ? ` — SKIPPED this week on ${skippedDates.join(', ')}; treat the user as fully free of this block on those dates`
+        : '';
+      return `- ${b.name}: Day ${b.dayOfWeek} (0=Sun) from ${b.startTime} to ${b.endTime}${skipNote}`;
+    })
     .join('\n');
 
   const wakeInfo = wakeLogs
@@ -102,6 +114,7 @@ Call the output_schedule tool with your complete schedule.`;
 export async function generateWeeklySchedule(params: {
   tasks: Task[];
   fixedBlocks: FixedBlock[];
+  blockExceptions: FixedBlockException[];
   wakeLogs: DailyWakeLog[];
   performanceHistory: Completion[];
   weekStart: string;

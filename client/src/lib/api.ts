@@ -15,6 +15,8 @@ export interface FixedBlock {
   startTime: string;
   endTime: string;
   recurring: boolean;
+  /** Dates (YYYY-MM-DD) this normally-recurring block does NOT apply on. */
+  exceptions: string[];
 }
 
 export interface ScheduleItem {
@@ -128,12 +130,16 @@ export const api = {
 
   blocks: {
     list: () => request<FixedBlock[]>('/api/blocks'),
-    create: (data: Omit<FixedBlock, 'id'>) =>
+    create: (data: Omit<FixedBlock, 'id' | 'exceptions'>) =>
       request<FixedBlock>('/api/blocks', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: Partial<Omit<FixedBlock, 'id'>>) =>
+    update: (id: string, data: Partial<Omit<FixedBlock, 'id' | 'exceptions'>>) =>
       request<FixedBlock>(`/api/blocks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<void>(`/api/blocks/${id}`, { method: 'DELETE' }),
+    skip: (id: string, date: string) =>
+      request<void>(`/api/blocks/${id}/skip`, { method: 'POST', body: JSON.stringify({ date }) }),
+    unskip: (id: string, date: string) =>
+      request<void>(`/api/blocks/${id}/skip`, { method: 'DELETE', body: JSON.stringify({ date }) }),
   },
 
   schedule: {
