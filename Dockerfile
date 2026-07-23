@@ -9,6 +9,7 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
+RUN npm run db:generate --workspace=server
 RUN npm run build
 
 # --- Production image ---
