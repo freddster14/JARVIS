@@ -4,6 +4,7 @@ import { api } from '../lib/api.js';
 import { FixedBlockForm } from '../components/FixedBlockForm.js';
 import { WakeLog } from '../components/WakeLog.js';
 import { usePushSubscription } from '../hooks/usePushSubscription.js';
+import { TimeInput12h } from '../components/TimeInput12h.js';
 
 export function Settings() {
   const qc = useQueryClient();
@@ -84,11 +85,10 @@ export function Settings() {
           {profile.wakeUpMode === 'fixed' && (
             <div>
               <label className="block text-sm text-gray-600 mb-1">I always wake up at</label>
-              <input
-                type="time"
-                className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                defaultValue={profile.fixedWakeTime ?? '09:00'}
-                onBlur={(e) => updateProfile.mutate({ fixedWakeTime: e.target.value })}
+              <TimeInput12h
+                className="max-w-[220px]"
+                value={profile.fixedWakeTime ?? '09:00'}
+                onChange={(v) => updateProfile.mutate({ fixedWakeTime: v })}
               />
             </div>
           )}
@@ -97,20 +97,18 @@ export function Settings() {
             <div className="space-y-3">
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Send morning ping at</label>
-                <input
-                  type="time"
-                  className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  defaultValue={profile.morningPingTime ?? '07:00'}
-                  onBlur={(e) => updateProfile.mutate({ morningPingTime: e.target.value })}
+                <TimeInput12h
+                  className="max-w-[220px]"
+                  value={profile.morningPingTime ?? '07:00'}
+                  onChange={(v) => updateProfile.mutate({ morningPingTime: v })}
                 />
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Fallback wake time (if I don't respond)</label>
-                <input
-                  type="time"
-                  className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  defaultValue={profile.fallbackWakeTime ?? '10:00'}
-                  onBlur={(e) => updateProfile.mutate({ fallbackWakeTime: e.target.value })}
+                <TimeInput12h
+                  className="max-w-[220px]"
+                  value={profile.fallbackWakeTime ?? '10:00'}
+                  onChange={(v) => updateProfile.mutate({ fallbackWakeTime: v })}
                 />
               </div>
             </div>

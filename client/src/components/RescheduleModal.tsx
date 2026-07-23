@@ -3,6 +3,7 @@ import { format, addDays, startOfWeek } from 'date-fns';
 import { useRescheduleItem } from '../hooks/useSchedule.js';
 import type { ScheduleItem } from '../lib/api.js';
 import { formatTime12h } from '../lib/time.js';
+import { TimeInput12h } from './TimeInput12h.js';
 
 function toMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -80,16 +81,12 @@ export function RescheduleModal({ item, weekStart, onClose }: Props) {
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <label className="block text-sm text-gray-600 mb-1">Start time</label>
-              <input
-                type="time"
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 transition ${
-                  (startError || endError)
-                    ? 'border-red-300 focus:ring-red-300'
-                    : 'focus:ring-indigo-400'
-                }`}
+              <TimeInput12h
+                className="w-full"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={setStartTime}
                 onBlur={() => setStartTouched(true)}
+                invalid={!!(startError || endError)}
               />
             </div>
             <div className={`text-sm pb-2 ${pastMidnight && startTouched ? 'text-red-500' : 'text-gray-400'}`}>

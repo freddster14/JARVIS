@@ -4,6 +4,7 @@ import { api, type FixedBlock } from '../lib/api.js';
 import { FieldError } from './FieldError.js';
 import { useBlocks } from '../hooks/useBlocks.js';
 import { formatTimeRange12h } from '../lib/time.js';
+import { TimeInput12h } from './TimeInput12h.js';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -135,24 +136,24 @@ function BlockEditRow({ block, onDone }: { block: FixedBlock; onDone: () => void
           </div>
         )}
         <div>
-          <input
-            type="time"
-            className={`w-full min-w-0 ${blockInputClass('startTime', touched, errors)}`}
+          <TimeInput12h
+            className="w-full"
             value={form.startTime}
-            onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+            onChange={(v) => setForm({ ...form, startTime: v })}
             onBlur={() => touch('startTime')}
             onKeyDown={handleKey}
+            invalid={!!(touched.startTime && errors.startTime)}
           />
           {touched.startTime && <FieldError message={errors.startTime} />}
         </div>
         <div>
-          <input
-            type="time"
-            className={`w-full min-w-0 ${blockInputClass('endTime', touched, errors)}`}
+          <TimeInput12h
+            className="w-full"
             value={form.endTime}
-            onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+            onChange={(v) => setForm({ ...form, endTime: v })}
             onBlur={() => touch('endTime')}
             onKeyDown={handleKey}
+            invalid={!!(touched.endTime && errors.endTime)}
           />
           {touched.endTime && <FieldError message={errors.endTime} />}
         </div>
@@ -374,22 +375,22 @@ export function FixedBlockForm() {
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <input
-              type="time"
-              className={`w-full min-w-0 ${blockInputClass('startTime', touched, errors)}`}
+            <TimeInput12h
+              className="w-full"
               value={form.startTime}
-              onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+              onChange={(v) => setForm({ ...form, startTime: v })}
               onBlur={() => touch('startTime')}
+              invalid={!!(touched.startTime && errors.startTime)}
             />
             {touched.startTime && <FieldError message={errors.startTime} />}
           </div>
           <div>
-            <input
-              type="time"
-              className={`w-full min-w-0 ${blockInputClass('endTime', touched, errors)}`}
+            <TimeInput12h
+              className="w-full"
               value={form.endTime}
-              onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+              onChange={(v) => setForm({ ...form, endTime: v })}
               onBlur={() => touch('endTime')}
+              invalid={!!(touched.endTime && errors.endTime)}
             />
             {touched.endTime && <FieldError message={errors.endTime} />}
           </div>
