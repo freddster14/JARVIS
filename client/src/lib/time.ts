@@ -10,3 +10,11 @@ export function formatTime12h(time: string): string {
 export function formatTimeRange12h(start: string, end: string): string {
   return `${formatTime12h(start)}–${formatTime12h(end)}`;
 }
+
+/** Formats a minute count as "1h 15m", "45m", or "2h", e.g. for focus-time totals. */
+export function formatDurationShort(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}

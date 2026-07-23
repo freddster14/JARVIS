@@ -61,4 +61,10 @@ describe('capReached', () => {
   it('is true past the planned duration', () => {
     expect(capReached(startedAt, plannedMinutes, addMinutes(startedAt, 200))).toBe(true);
   });
+
+  it('offsets elapsed time by minutes spent paused', () => {
+    // 140 wall-clock minutes elapsed, but 30 of those were paused -> only 110 count.
+    expect(capReached(startedAt, plannedMinutes, addMinutes(startedAt, 140), 30)).toBe(false);
+    expect(capReached(startedAt, plannedMinutes, addMinutes(startedAt, 150), 30)).toBe(true);
+  });
 });

@@ -71,11 +71,17 @@ model FocusSession {
   phaseEndsAt    DateTime
   /// Completed work phases so far — decides 25/5 short break vs 25/15 long break.
   cycleCount     Int          @default(0)
-  /// 'running' | 'awaiting_ack' | 'needs_resolution' | 'completed' | 'cancelled'
+  /// 'running' | 'paused' | 'awaiting_ack' | 'needs_resolution' | 'completed' | 'cancelled'
   status         String       @default("running")
   /// Next time a reminder push is due; null while running or once resolved/stopped.
   nextNagAt      DateTime?
   lastNotifiedAt DateTime?
+  /// When the current pause began; null unless status = 'paused'.
+  pausedAt       DateTime?
+  /// Snapshot of ms left in the current phase, taken at pause time, restored on resume.
+  remainingMsAtPause Int?
+  /// Cumulative minutes spent paused — subtracted when checking the plannedMinutes cap.
+  pausedMinutesTotal Int      @default(0)
   resolvedActualMinutes Int?
   resolvedAt     DateTime?
   createdAt      DateTime     @default(now())

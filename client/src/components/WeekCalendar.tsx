@@ -84,7 +84,12 @@ export function WeekCalendar({ currentDate }: Props) {
           onClick={() => setDetailItem(item)}
           title={`${formatTimeRange12h(item.startTime, item.endTime)} · tap to open`}
         >
-          <div className="font-medium truncate">{item.task.name}</div>
+          <div className="font-medium truncate flex items-center gap-1">
+            {item.focusSessions && item.focusSessions.length > 0 && (
+              <span title="Timer active">{item.focusSessions[0].status === 'paused' ? '⏸' : '⏱'}</span>
+            )}
+            {item.task.name}
+          </div>
           <div className="opacity-70">{formatTimeRange12h(item.startTime, item.endTime)}</div>
         </div>
       </div>

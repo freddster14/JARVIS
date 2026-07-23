@@ -29,12 +29,17 @@ export async function getWeekProgress(req: Request, res: Response) {
   const weekEnd = new Date(weekStartDate);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
-  const [tasks, items] = await Promise.all([
+  const [tasks, items, focusSessions] = await Promise.all([
     prisma.task.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.scheduleItem.findMany({
       where: { date: { gte: weekStartDate, lt: weekEnd } },
     }),
+    prisma.focusSession.findMany({
+      where: { status: 'completed', startedAt: { gte: weekStartDate, lt: weekEnd } },
+      select: { resolvedActualMinutes: true },
+    }),
   ]);
+  const totalFocusMinutes = focusSessions.reduce((s, f) => s + (f.resolvedActualMinutes ?? 0), 0);
 
   const byTask = new Map<string, typeof items>();
   for (const item of items) {
@@ -82,6 +87,7 @@ export async function getWeekProgress(req: Request, res: Response) {
       completionRate: decided > 0 ? totalCompleted / decided : 0,
       goalsMet,
       totalGoals: tasks.length,
+      totalFocusMinutes,
     },
     tasks: tasksProgress,
   });
@@ -133,13 +139,18 @@ export async function getToday(_req: Request, res: Response) {
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
-  const todayItems = await prisma.scheduleItem.findMany({
-    where: { date: { gte: todayStart, lt: todayEnd } },
-  });
+  const [todayItems, todayFocusSessions] = await Promise.all([
+    prisma.scheduleItem.findMany({ where: { date: { gte: todayStart, lt: todayEnd } } }),
+    prisma.focusSession.findMany({
+      where: { status: 'completed', startedAt: { gte: todayStart, lt: todayEnd } },
+      select: { resolvedActualMinutes: true },
+    }),
+  ]);
 
   const done = todayItems.filter((i) => i.status === 'done').length;
   const pending = todayItems.filter((i) => i.status === 'pending' || i.status === 'rescheduled').length;
   const skipped = todayItems.filter((i) => i.status === 'skipped').length;
+  const focusMinutes = todayFocusSessions.reduce((s, f) => s + (f.resolvedActualMinutes ?? 0), 0);
 
   // Streak: count consecutive past days (going backwards from yesterday)
   // that had at least one completed item.
@@ -164,5 +175,5 @@ export async function getToday(_req: Request, res: Response) {
   // Include today in streak if already has a completion.
   if (done > 0) streak++;
 
-  res.json({ date: todayStr, done, pending, skipped, streak });
+  res.json({ date: todayStr, done, pending, skipped, streak, focusMinutes });
 }

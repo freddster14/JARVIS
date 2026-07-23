@@ -129,7 +129,7 @@ async function checkFocusSessionReminders(): Promise<void> {
   });
 
   for (const session of sessions) {
-    if (capReached(session.startedAt, session.plannedMinutes, now)) {
+    if (capReached(session.startedAt, session.plannedMinutes, now, session.pausedMinutesTotal)) {
       await prisma.focusSession.update({
         where: { id: session.id },
         data: { status: 'needs_resolution', nextNagAt: null },

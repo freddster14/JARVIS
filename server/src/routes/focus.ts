@@ -5,6 +5,8 @@ import {
   getFocusSessionByItem,
   getSessionsNeedingResolution,
   advanceFocusSession,
+  pauseFocusSession,
+  resumeFocusSession,
   snoozeFocusSession,
   stopFocusSession,
   cancelFocusSession,
@@ -31,6 +33,8 @@ router.get(
 );
 
 router.post('/:id/advance', advanceFocusSession);
+router.post('/:id/pause', pauseFocusSession);
+router.post('/:id/resume', resumeFocusSession);
 router.post('/:id/snooze', snoozeFocusSession);
 
 router.post(

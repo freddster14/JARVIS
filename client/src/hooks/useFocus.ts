@@ -44,6 +44,14 @@ export function useAdvanceFocus() {
   return useFocusMutation((id: string) => api.focus.advance(id));
 }
 
+export function usePauseFocus() {
+  return useFocusMutation((id: string) => api.focus.pause(id));
+}
+
+export function useResumeFocus() {
+  return useFocusMutation((id: string) => api.focus.resume(id));
+}
+
 export function useSnoozeFocus() {
   return useFocusMutation((id: string) => api.focus.snooze(id));
 }

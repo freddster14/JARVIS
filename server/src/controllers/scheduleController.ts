@@ -11,7 +11,14 @@ export async function getSchedule(req: Request, res: Response) {
 
   const items = await prisma.scheduleItem.findMany({
     where: { date: { gte: start, lt: end } },
-    include: { task: true },
+    include: {
+      task: true,
+      focusSessions: {
+        where: { status: { in: ['running', 'paused', 'awaiting_ack'] } },
+        take: 1,
+        select: { id: true, phase: true, status: true },
+      },
+    },
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
   });
 

@@ -33,7 +33,10 @@ export function computeNextPhase(elapsedPhase: Phase, cycleCount: number): Phase
   return { phase: 'work', cycleCount };
 }
 
-/** True once total wall-clock time since session start reaches the task's planned cap. */
-export function capReached(startedAt: Date, plannedMinutes: number, now: Date): boolean {
-  return (now.getTime() - startedAt.getTime()) / 60_000 >= plannedMinutes;
+/**
+ * True once wall-clock time since session start — minus any time spent paused —
+ * reaches the task's planned cap.
+ */
+export function capReached(startedAt: Date, plannedMinutes: number, now: Date, pausedMinutes = 0): boolean {
+  return (now.getTime() - startedAt.getTime()) / 60_000 - pausedMinutes >= plannedMinutes;
 }

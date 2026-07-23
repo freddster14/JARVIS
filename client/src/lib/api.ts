@@ -30,6 +30,8 @@ export interface ScheduleItem {
   endTime: string;
   status: 'pending' | 'done' | 'skipped' | 'rescheduled';
   notifiedAt: string | null;
+  /** Present (length 1) when an active Pomodoro timer is running/paused/awaiting ack for this item. */
+  focusSessions?: Array<{ id: string; phase: FocusPhase; status: FocusSessionStatus }>;
 }
 
 export interface UserProfile {
@@ -64,6 +66,7 @@ export interface WeekProgress {
     completionRate: number;
     goalsMet: number;
     totalGoals: number;
+    totalFocusMinutes: number;
   };
   tasks: TaskProgress[];
 }
@@ -81,6 +84,7 @@ export interface TodayStats {
   pending: number;
   skipped: number;
   streak: number;
+  focusMinutes: number;
 }
 
 export interface WeeklyReview {
@@ -119,7 +123,7 @@ export interface TipRecheckResult {
 }
 
 export type FocusPhase = 'work' | 'break' | 'long_break';
-export type FocusSessionStatus = 'running' | 'awaiting_ack' | 'needs_resolution' | 'completed' | 'cancelled';
+export type FocusSessionStatus = 'running' | 'paused' | 'awaiting_ack' | 'needs_resolution' | 'completed' | 'cancelled';
 
 export interface FocusSession {
   id: string;
@@ -139,6 +143,9 @@ export interface FocusSession {
   status: FocusSessionStatus;
   nextNagAt: string | null;
   lastNotifiedAt: string | null;
+  pausedAt: string | null;
+  remainingMsAtPause: number | null;
+  pausedMinutesTotal: number;
   resolvedActualMinutes: number | null;
   resolvedAt: string | null;
 }
@@ -280,6 +287,8 @@ export const api = {
       request<FocusSession | null>(`/api/focus/by-item/${scheduleItemId}`),
     needsResolution: () => request<FocusSession[]>('/api/focus/needs-resolution'),
     advance: (id: string) => request<FocusSession>(`/api/focus/${id}/advance`, { method: 'POST' }),
+    pause: (id: string) => request<FocusSession>(`/api/focus/${id}/pause`, { method: 'POST' }),
+    resume: (id: string) => request<FocusSession>(`/api/focus/${id}/resume`, { method: 'POST' }),
     snooze: (id: string) => request<FocusSession>(`/api/focus/${id}/snooze`, { method: 'POST' }),
     stop: (id: string, actualMinutes?: number) =>
       request<FocusSession>(`/api/focus/${id}/stop`, { method: 'POST', body: JSON.stringify({ actualMinutes }) }),

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useSchedule, useUpdateItemStatus } from '../hooks/useSchedule.js';
 import { useBlocks, useSkipBlock, useUnskipBlock } from '../hooks/useBlocks.js';
+import { useStopFocus } from '../hooks/useFocus.js';
 import { TaskTimerModal } from './TaskTimerModal.js';
 import type { ScheduleItem, FixedBlock } from '../lib/api.js';
 import { formatTimeRange12h } from '../lib/time.js';
@@ -36,7 +37,13 @@ export function TodayPanel() {
   const { mutate: updateStatus } = useUpdateItemStatus();
   const { mutate: skipBlock } = useSkipBlock();
   const { mutate: unskipBlock } = useUnskipBlock();
+  const { mutate: stopFocus } = useStopFocus();
   const [timerItem, setTimerItem] = useState<ScheduleItem | null>(null);
+
+  function stopActiveSession(item: ScheduleItem) {
+    const active = item.focusSessions?.[0];
+    if (active) stopFocus({ id: active.id });
+  }
 
   // Re-render every 30s so "time until" and current-task state stay fresh.
   const [, setTick] = useState(0);
@@ -95,8 +102,8 @@ export function TodayPanel() {
           item={focus}
           isCurrent={focus === currentTask}
           minutesUntil={timeToMinutes(focus.startTime) - cur}
-          onDone={() => updateStatus({ id: focus.id, status: 'done' })}
-          onSkip={() => updateStatus({ id: focus.id, status: 'skipped' })}
+          onDone={() => { stopActiveSession(focus); updateStatus({ id: focus.id, status: 'done' }); }}
+          onSkip={() => { stopActiveSession(focus); updateStatus({ id: focus.id, status: 'skipped' }); }}
           onOpenTimer={() => setTimerItem(focus)}
         />
       ) : (
@@ -172,6 +179,11 @@ export function TodayPanel() {
                     : 'text-gray-800'
                 }`}
               >
+                {item.focusSessions && item.focusSessions.length > 0 && (
+                  <span className="mr-1" title="Timer active">
+                    {item.focusSessions[0].status === 'paused' ? '⏸' : '⏱'}
+                  </span>
+                )}
                 {item.task.name}
               </span>
               <StatusBadge status={item.status} />

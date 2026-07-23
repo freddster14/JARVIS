@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { ScheduleItem, FocusPhase } from '../lib/api.js';
 import { formatTimeRange12h } from '../lib/time.js';
-import { useFocusSession, useStartFocus, useAdvanceFocus, useSnoozeFocus, useStopFocus } from '../hooks/useFocus.js';
+import {
+  useFocusSession,
+  useStartFocus,
+  useAdvanceFocus,
+  usePauseFocus,
+  useResumeFocus,
+  useSnoozeFocus,
+  useStopFocus,
+} from '../hooks/useFocus.js';
 import { useUpdateItemStatus } from '../hooks/useSchedule.js';
 import { FocusResolutionForm } from './FocusResolutionForm.js';
 
@@ -27,6 +35,8 @@ export function TaskTimerModal({ item, onClose }: Props) {
   const { data: session, isLoading } = useFocusSession(item.id);
   const { mutate: start, isPending: isStarting } = useStartFocus();
   const { mutate: advance, isPending: isAdvancing } = useAdvanceFocus();
+  const { mutate: pause, isPending: isPausing } = usePauseFocus();
+  const { mutate: resume, isPending: isResuming } = useResumeFocus();
   const { mutate: snooze, isPending: isSnoozing } = useSnoozeFocus();
   const { mutate: stop, isPending: isStopping } = useStopFocus();
   const { mutate: updateStatus } = useUpdateItemStatus();
@@ -37,12 +47,20 @@ export function TaskTimerModal({ item, onClose }: Props) {
     return () => clearInterval(id);
   }, []);
 
+  function stopActiveSessionIfAny() {
+    if (session && ['running', 'paused', 'awaiting_ack'].includes(session.status)) {
+      stop({ id: session.id });
+    }
+  }
+
   function handleMarkDone() {
+    stopActiveSessionIfAny();
     updateStatus({ id: item.id, status: 'done' });
     onClose();
   }
 
   function handleSkip() {
+    stopActiveSessionIfAny();
     updateStatus({ id: item.id, status: 'skipped' });
     onClose();
   }
@@ -85,13 +103,51 @@ export function TaskTimerModal({ item, onClose }: Props) {
                 {formatCountdown((new Date(session.phaseEndsAt).getTime() - Date.now()) / 1000)}
               </p>
             </div>
-            <button
-              onClick={handleStopAndLog}
-              disabled={isStopping}
-              className="w-full px-3 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition"
-            >
-              {isStopping ? 'Stopping…' : 'Stop & log time'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => pause(session.id)}
+                disabled={isPausing}
+                className="flex-1 px-3 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition"
+              >
+                {isPausing ? 'Pausing…' : '⏸ Pause'}
+              </button>
+              <button
+                onClick={handleStopAndLog}
+                disabled={isStopping}
+                className="flex-1 px-3 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition"
+              >
+                {isStopping ? 'Stopping…' : 'Stop & log time'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {session && session.status === 'paused' && (
+          <div className="space-y-3">
+            <div className="bg-gray-100 rounded-xl p-5 text-center">
+              <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold">
+                {PHASE_LABEL[session.phase]} · Paused
+              </p>
+              <p className="text-4xl font-bold mt-1 tabular-nums text-gray-700">
+                {formatCountdown((session.remainingMsAtPause ?? 0) / 1000)}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => resume(session.id)}
+                disabled={isResuming}
+                className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition"
+              >
+                {isResuming ? 'Resuming…' : '▶ Resume'}
+              </button>
+              <button
+                onClick={handleStopAndLog}
+                disabled={isStopping}
+                className="flex-1 px-3 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition"
+              >
+                {isStopping ? 'Stopping…' : 'Stop & log time'}
+              </button>
+            </div>
           </div>
         )}
 

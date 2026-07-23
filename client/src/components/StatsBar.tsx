@@ -1,6 +1,7 @@
 import { format, startOfWeek } from 'date-fns';
 import { useTodayStats } from '../hooks/useStats.js';
 import { useWeekProgress } from '../hooks/useStats.js';
+import { formatDurationShort } from '../lib/time.js';
 
 function Chip({
   label,
@@ -38,6 +39,9 @@ export function StatsBar() {
           {today.streak > 1 && (
             <Chip label="Day streak" value={`${today.streak} 🔥`} color="bg-orange-400" />
           )}
+          {today.focusMinutes > 0 && (
+            <Chip label="Focus time" value={formatDurationShort(today.focusMinutes)} color="bg-rose-400" />
+          )}
         </>
       )}
 
@@ -54,6 +58,13 @@ export function StatsBar() {
               label="Goals met"
               value={`${week.overall.goalsMet}/${week.overall.totalGoals}`}
               color="bg-teal-400"
+            />
+          )}
+          {week?.overall && week.overall.totalFocusMinutes > 0 && (
+            <Chip
+              label="Focus this week"
+              value={formatDurationShort(week.overall.totalFocusMinutes)}
+              color="bg-rose-400"
             />
           )}
         </>

@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import type { FocusSession } from '../lib/api.js';
 import { useResolveFocus } from '../hooks/useFocus.js';
-
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
-}
+import { formatDurationShort } from '../lib/time.js';
 
 interface Props {
   session: FocusSession;
@@ -32,7 +26,7 @@ export function FocusResolutionForm({ session, onResolved }: Props) {
     <div className="space-y-3">
       <p>
         Your timer for <strong>{session.scheduleItem.task.name}</strong> was left running past its planned{' '}
-        <strong>{formatDuration(session.plannedMinutes)}</strong>. What actually happened?
+        <strong>{formatDurationShort(session.plannedMinutes)}</strong>. What actually happened?
       </p>
 
       {error && (

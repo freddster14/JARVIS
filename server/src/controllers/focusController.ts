@@ -70,7 +70,7 @@ export async function advanceFocusSession(req: Request<{ id: string }>, res: Res
   }
 
   const now = new Date();
-  if (capReached(session.startedAt, session.plannedMinutes, now)) {
+  if (capReached(session.startedAt, session.plannedMinutes, now, session.pausedMinutesTotal)) {
     const updated = await prisma.focusSession.update({
       where: { id: session.id },
       data: { status: 'needs_resolution', nextNagAt: null },
@@ -90,6 +90,54 @@ export async function advanceFocusSession(req: Request<{ id: string }>, res: Res
       phaseEndsAt: addMinutes(now, phaseDurationMin(phase)),
       status: 'running',
       nextNagAt: null,
+    },
+    include: sessionInclude,
+  });
+  res.json(updated);
+}
+
+export async function pauseFocusSession(req: Request<{ id: string }>, res: Response) {
+  const session = await prisma.focusSession.findUnique({ where: { id: req.params.id } });
+  if (!session) {
+    res.status(404).json({ error: 'Focus session not found' });
+    return;
+  }
+  if (session.status !== 'running') {
+    res.status(409).json({ error: `Cannot pause a session in status "${session.status}"` });
+    return;
+  }
+
+  const now = new Date();
+  const remainingMs = Math.max(0, session.phaseEndsAt.getTime() - now.getTime());
+  const updated = await prisma.focusSession.update({
+    where: { id: session.id },
+    data: { status: 'paused', pausedAt: now, remainingMsAtPause: remainingMs },
+    include: sessionInclude,
+  });
+  res.json(updated);
+}
+
+export async function resumeFocusSession(req: Request<{ id: string }>, res: Response) {
+  const session = await prisma.focusSession.findUnique({ where: { id: req.params.id } });
+  if (!session) {
+    res.status(404).json({ error: 'Focus session not found' });
+    return;
+  }
+  if (session.status !== 'paused' || !session.pausedAt) {
+    res.status(409).json({ error: `Cannot resume a session in status "${session.status}"` });
+    return;
+  }
+
+  const now = new Date();
+  const pausedMinutes = (now.getTime() - session.pausedAt.getTime()) / 60_000;
+  const updated = await prisma.focusSession.update({
+    where: { id: session.id },
+    data: {
+      status: 'running',
+      phaseEndsAt: addMinutes(now, (session.remainingMsAtPause ?? 0) / 60_000),
+      pausedAt: null,
+      remainingMsAtPause: null,
+      pausedMinutesTotal: session.pausedMinutesTotal + pausedMinutes,
     },
     include: sessionInclude,
   });
@@ -121,10 +169,18 @@ export async function stopFocusSession(req: Request<{ id: string }>, res: Respon
     res.status(404).json({ error: 'Focus session not found' });
     return;
   }
+  if (!['running', 'paused', 'awaiting_ack'].includes(session.status)) {
+    res.status(409).json({ error: `Cannot stop a session in status "${session.status}"` });
+    return;
+  }
 
   const { actualMinutes } = req.body as { actualMinutes?: number };
   const now = new Date();
-  const minutes = actualMinutes ?? Math.round((now.getTime() - session.startedAt.getTime()) / 60_000);
+  let elapsed = (now.getTime() - session.startedAt.getTime()) / 60_000 - session.pausedMinutesTotal;
+  if (session.status === 'paused' && session.pausedAt) {
+    elapsed -= (now.getTime() - session.pausedAt.getTime()) / 60_000;
+  }
+  const minutes = actualMinutes ?? Math.max(0, Math.round(elapsed));
 
   const updated = await prisma.focusSession.update({
     where: { id: session.id },
