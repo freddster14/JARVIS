@@ -15,6 +15,8 @@ export interface FixedBlock {
   startTime: string;
   endTime: string;
   recurring: boolean;
+  /** Set only when recurring is false: the single date this one-off block applies to (YYYY-MM-DD). */
+  date: string | null;
   /** Dates (YYYY-MM-DD) this normally-recurring block does NOT apply on. */
   exceptions: string[];
 }

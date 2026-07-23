@@ -6,17 +6,23 @@ import { useBlocks } from '../hooks/useBlocks.js';
 import { formatTimeRange12h } from '../lib/time.js';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-type BlockFormState = Omit<FixedBlock, 'id' | 'exceptions'>;
+interface SharedFields {
+  name: string;
+  startTime: string;
+  endTime: string;
+}
 
 interface BlockErrors {
   name?: string;
   startTime?: string;
   endTime?: string;
   days?: string;
+  date?: string;
 }
 
-function validateBlock(form: Omit<BlockFormState, 'dayOfWeek'>): BlockErrors {
+function validateShared(form: SharedFields): BlockErrors {
   const errors: BlockErrors = {};
   if (!form.name.trim()) errors.name = 'Name is required.';
   else if (form.name.trim().length > 100) errors.name = 'Name must be 100 characters or fewer.';
@@ -27,8 +33,7 @@ function validateBlock(form: Omit<BlockFormState, 'dayOfWeek'>): BlockErrors {
   return errors;
 }
 
-const EMPTY_BLOCK: Omit<BlockFormState, 'dayOfWeek'> = { name: '', startTime: '09:00', endTime: '17:00', recurring: true };
-const DAY_ABBR = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const EMPTY_BLOCK: SharedFields = { name: '', startTime: '09:00', endTime: '17:00' };
 
 function blockInputClass(field: keyof BlockErrors, touched: Partial<Record<keyof BlockErrors, boolean>>, errors: BlockErrors) {
   return `border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 transition ${
@@ -38,23 +43,34 @@ function blockInputClass(field: keyof BlockErrors, touched: Partial<Record<keyof
   }`;
 }
 
+function formatOneTimeDate(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 function BlockEditRow({ block, onDone }: { block: FixedBlock; onDone: () => void }) {
   const qc = useQueryClient();
   const updateBlock = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<BlockFormState> }) =>
+    mutationFn: ({ id, data }: { id: string; data: Partial<Omit<FixedBlock, 'id' | 'exceptions'>> }) =>
       api.blocks.update(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['blocks'] }); onDone(); },
   });
 
-  const [form, setForm] = useState<BlockFormState>({
+  const [form, setForm] = useState<SharedFields>({
     name: block.name,
-    dayOfWeek: block.dayOfWeek,
     startTime: block.startTime,
     endTime: block.endTime,
-    recurring: block.recurring,
   });
+  const [dayOfWeek, setDayOfWeek] = useState(block.dayOfWeek);
+  const [oneTimeDate, setOneTimeDate] = useState(block.date ?? '');
   const [touched, setTouched] = useState<Partial<Record<keyof BlockErrors, boolean>>>({});
-  const errors = validateBlock(form);
+  const errors: BlockErrors = {
+    ...validateShared(form),
+    ...(!block.recurring && !oneTimeDate ? { date: 'Pick a date.' } : {}),
+  };
   const hasErrors = Object.keys(errors).length > 0;
 
   function touch(field: keyof BlockErrors) {
@@ -62,9 +78,14 @@ function BlockEditRow({ block, onDone }: { block: FixedBlock; onDone: () => void
   }
 
   function handleSave() {
-    setTouched({ name: true, startTime: true, endTime: true });
+    setTouched({ name: true, startTime: true, endTime: true, date: true });
     if (hasErrors) return;
-    updateBlock.mutate({ id: block.id, data: form });
+    updateBlock.mutate({
+      id: block.id,
+      data: block.recurring
+        ? { ...form, dayOfWeek, recurring: true, date: null }
+        : { ...form, recurring: false, date: oneTimeDate },
+    });
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -93,13 +114,26 @@ function BlockEditRow({ block, onDone }: { block: FixedBlock; onDone: () => void
         {touched.name && <FieldError message={errors.name} />}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <select
-          className="w-full min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-          value={form.dayOfWeek}
-          onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
-        >
-          {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-        </select>
+        {block.recurring ? (
+          <select
+            className="w-full min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+            value={dayOfWeek}
+            onChange={(e) => setDayOfWeek(Number(e.target.value))}
+          >
+            {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+          </select>
+        ) : (
+          <div>
+            <input
+              type="date"
+              className={`w-full min-w-0 ${blockInputClass('date', touched, errors)}`}
+              value={oneTimeDate}
+              onChange={(e) => setOneTimeDate(e.target.value)}
+              onBlur={() => touch('date')}
+            />
+            {touched.date && <FieldError message={errors.date} />}
+          </div>
+        )}
         <div>
           <input
             type="time"
@@ -169,8 +203,12 @@ function BlockRow({ block }: { block: FixedBlock }) {
       <div>
         <span className="font-medium text-gray-800">{block.name}</span>
         <span className="text-sm text-gray-500 ml-2">
-          {DAY_NAMES[block.dayOfWeek]} {formatTimeRange12h(block.startTime, block.endTime)}
+          {block.recurring ? DAY_NAMES[block.dayOfWeek] : block.date ? formatOneTimeDate(block.date) : ''}{' '}
+          {formatTimeRange12h(block.startTime, block.endTime)}
         </span>
+        {!block.recurring && (
+          <span className="ml-2 text-xs text-indigo-500 bg-indigo-50 rounded-full px-2 py-0.5">one-time</span>
+        )}
       </div>
       <div className="flex items-center gap-1">
         <button
@@ -204,13 +242,16 @@ export function FixedBlockForm() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['blocks'] }),
   });
 
-  const [form, setForm] = useState(EMPTY_BLOCK);
+  const [mode, setMode] = useState<'recurring' | 'oneTime'>('recurring');
+  const [form, setForm] = useState<SharedFields>(EMPTY_BLOCK);
   const [selectedDays, setSelectedDays] = useState<number[]>([1]);
+  const [oneTimeDate, setOneTimeDate] = useState('');
   const [touched, setTouched] = useState<Partial<Record<keyof BlockErrors, boolean>>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const errors: BlockErrors = {
-    ...validateBlock(form),
-    ...(selectedDays.length === 0 ? { days: 'Select at least one day.' } : {}),
+    ...validateShared(form),
+    ...(mode === 'recurring' && selectedDays.length === 0 ? { days: 'Select at least one day.' } : {}),
+    ...(mode === 'oneTime' && !oneTimeDate ? { date: 'Pick a date.' } : {}),
   };
   const hasErrors = Object.keys(errors).length > 0;
 
@@ -226,15 +267,22 @@ export function FixedBlockForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setTouched({ name: true, startTime: true, endTime: true, days: true });
+    setTouched({ name: true, startTime: true, endTime: true, days: true, date: true });
     if (hasErrors) return;
     setSubmitError(null);
     try {
-      await Promise.all(
-        selectedDays.map((dayOfWeek) => createBlock.mutateAsync({ ...form, dayOfWeek }))
-      );
+      if (mode === 'oneTime') {
+        await createBlock.mutateAsync({ ...form, recurring: false, date: oneTimeDate, dayOfWeek: 0 });
+      } else {
+        await Promise.all(
+          selectedDays.map((dayOfWeek) =>
+            createBlock.mutateAsync({ ...form, dayOfWeek, recurring: true, date: null })
+          )
+        );
+      }
       setForm(EMPTY_BLOCK);
       setSelectedDays([1]);
+      setOneTimeDate('');
       setTouched({});
     } catch (err) {
       setSubmitError((err as Error).message);
@@ -264,26 +312,65 @@ export function FixedBlockForm() {
           {touched.name && <FieldError message={errors.name} />}
         </div>
 
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">Day(s)</label>
-          <div className="grid grid-cols-7 gap-1">
-            {DAY_ABBR.map((abbr, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => toggleDay(i)}
-                className={`py-2 rounded-lg text-xs font-medium border transition ${
-                  selectedDays.includes(i)
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {abbr}
-              </button>
-            ))}
-          </div>
-          {touched.days && <FieldError message={errors.days} />}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('recurring')}
+            className={`py-2 rounded-lg text-sm font-medium border transition ${
+              mode === 'recurring'
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Every week
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('oneTime')}
+            className={`py-2 rounded-lg text-sm font-medium border transition ${
+              mode === 'oneTime'
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            One time
+          </button>
         </div>
+
+        {mode === 'recurring' ? (
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Day(s)</label>
+            <div className="grid grid-cols-7 gap-1">
+              {DAY_ABBR.map((abbr, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => toggleDay(i)}
+                  className={`py-2 rounded-lg text-xs font-medium border transition ${
+                    selectedDays.includes(i)
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {abbr}
+                </button>
+              ))}
+            </div>
+            {touched.days && <FieldError message={errors.days} />}
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Date</label>
+            <input
+              type="date"
+              className={`w-full ${blockInputClass('date', touched, errors)}`}
+              value={oneTimeDate}
+              onChange={(e) => setOneTimeDate(e.target.value)}
+              onBlur={() => touch('date')}
+            />
+            {touched.date && <FieldError message={errors.date} />}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -314,7 +401,7 @@ export function FixedBlockForm() {
         >
           {createBlock.isPending
             ? 'Adding…'
-            : selectedDays.length > 1
+            : mode === 'recurring' && selectedDays.length > 1
               ? `Add Block (${selectedDays.length} days)`
               : 'Add Block'}
         </button>

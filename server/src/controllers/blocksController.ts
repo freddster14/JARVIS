@@ -7,49 +7,75 @@ export async function getBlocks(_req: Request, res: Response) {
     include: { exceptions: true },
   });
   res.json(
-    blocks.map(({ exceptions, ...block }) => ({
+    blocks.map(({ exceptions, date, ...block }) => ({
       ...block,
+      date: date ? date.toISOString().slice(0, 10) : null,
       exceptions: exceptions.map((e) => e.date.toISOString().slice(0, 10)),
     }))
   );
 }
 
 export async function createBlock(req: Request, res: Response) {
-  const { name, dayOfWeek, startTime, endTime, recurring = true } = req.body as {
+  const { name, dayOfWeek, startTime, endTime, recurring = true, date } = req.body as {
     name: string;
-    dayOfWeek: number;
+    dayOfWeek?: number;
     startTime: string;
     endTime: string;
     recurring?: boolean;
+    date?: string;
   };
 
+  // One-time blocks are keyed by date, not day-of-week — derive dayOfWeek from
+  // the date so the block still slots into day-of-week-based UI consistently.
+  const oneTimeDate = recurring === false && date ? new Date(date) : null;
+  const resolvedDayOfWeek = oneTimeDate ? oneTimeDate.getDay() : (dayOfWeek as number);
+
   const block = await prisma.fixedBlock.create({
-    data: { name: name.trim(), dayOfWeek, startTime, endTime, recurring },
+    data: {
+      name: name.trim(),
+      dayOfWeek: resolvedDayOfWeek,
+      startTime,
+      endTime,
+      recurring,
+      date: oneTimeDate,
+    },
   });
-  res.status(201).json(block);
+  res.status(201).json({ ...block, date: oneTimeDate ? date : null });
 }
 
 export async function updateBlock(req: Request<{ id: string }>, res: Response) {
-  const { name, dayOfWeek, startTime, endTime, recurring } = req.body as {
+  const { name, dayOfWeek, startTime, endTime, recurring, date } = req.body as {
     name?: string;
     dayOfWeek?: number;
     startTime?: string;
     endTime?: string;
     recurring?: boolean;
+    date?: string;
   };
+
+  const oneTimeDate = recurring === false && date ? new Date(date) : undefined;
+
+  const data: Record<string, unknown> = {};
+  if (name !== undefined) data.name = name.trim();
+  if (startTime !== undefined) data.startTime = startTime;
+  if (endTime !== undefined) data.endTime = endTime;
+  if (recurring !== undefined) data.recurring = recurring;
+
+  if (oneTimeDate) {
+    // Switching to (or updating) a one-time block: dayOfWeek always follows the date.
+    data.date = oneTimeDate;
+    data.dayOfWeek = oneTimeDate.getDay();
+  } else {
+    if (dayOfWeek !== undefined) data.dayOfWeek = dayOfWeek;
+    if (recurring === true) data.date = null;
+  }
 
   try {
     const block = await prisma.fixedBlock.update({
       where: { id: req.params.id },
-      data: {
-        ...(name !== undefined && { name: name.trim() }),
-        ...(dayOfWeek !== undefined && { dayOfWeek }),
-        ...(startTime !== undefined && { startTime }),
-        ...(endTime !== undefined && { endTime }),
-        ...(recurring !== undefined && { recurring }),
-      },
+      data,
     });
-    res.json(block);
+    res.json({ ...block, date: block.date ? block.date.toISOString().slice(0, 10) : null });
   } catch {
     res.status(404).json({ error: 'Block not found' });
   }

@@ -27,6 +27,8 @@ model FixedBlock {
   startTime  String
   endTime    String
   recurring  Boolean               @default(true)
+  /// Set only when recurring = false: the single date this one-off block applies to.
+  date       DateTime?
   exceptions FixedBlockException[]
 }
 

@@ -62,7 +62,14 @@ export async function generateSchedule(req: Request, res: Response) {
 
   const capacity = computeWeekCapacity({
     weekDays,
-    fixedBlocks: fixedBlocks.map((b) => ({ id: b.id, dayOfWeek: b.dayOfWeek, startTime: b.startTime, endTime: b.endTime })),
+    fixedBlocks: fixedBlocks.map((b) => ({
+      id: b.id,
+      dayOfWeek: b.dayOfWeek,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      recurring: b.recurring,
+      dateStr: b.date ? b.date.toISOString().slice(0, 10) : null,
+    })),
     skippedDates: blockExceptions.map((e) => ({ fixedBlockId: e.fixedBlockId, dateStr: e.date.toISOString().slice(0, 10) })),
     tasks: tasks.map((t) => ({ durationMin: t.durationMin, weeklyGoal: t.weeklyGoal })),
   });

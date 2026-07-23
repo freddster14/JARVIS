@@ -60,7 +60,7 @@ export function WeekCalendar({ currentDate }: Props) {
       .filter((item) => item.date.startsWith(dateStr))
       .map((item) => ({ kind: 'task', startTime: item.startTime, item }));
     const blockEntries: DayEntry[] = (blocks ?? [])
-      .filter((b) => b.dayOfWeek === dayOfWeek)
+      .filter((b) => (b.recurring ? b.dayOfWeek === dayOfWeek : b.date === dateStr))
       .map((block) => ({ kind: 'block', startTime: block.startTime, block }));
     return [...taskEntries, ...blockEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
   }
@@ -125,7 +125,7 @@ export function WeekCalendar({ currentDate }: Props) {
         <div className="font-medium truncate">{block.name}</div>
         <div className="flex items-center justify-between gap-1 opacity-70">
           <span>{formatTimeRange12h(block.startTime, block.endTime)}</span>
-          <span className="shrink-0">fixed</span>
+          <span className="shrink-0">{block.recurring ? 'fixed' : 'one-time'}</span>
         </div>
       </button>
     );

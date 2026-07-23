@@ -80,7 +80,7 @@ export function computeFreeMinutes(wakeTime: string, blocks: TimeSlot[], dayEnd 
 
 export interface WeekCapacityInput {
   weekDays: { dateStr: string; dayOfWeek: number; wakeTime: string }[];
-  fixedBlocks: { id: string; dayOfWeek: number; startTime: string; endTime: string }[];
+  fixedBlocks: { id: string; dayOfWeek: number; startTime: string; endTime: string; recurring: boolean; dateStr: string | null }[];
   skippedDates: { fixedBlockId: string; dateStr: string }[];
   tasks: { durationMin: number; weeklyGoal: number }[];
   dayEnd?: string;
@@ -100,7 +100,7 @@ export function computeWeekCapacity(input: WeekCapacityInput): WeekCapacity {
   let freeMinutes = 0;
   for (const day of weekDays) {
     const blocksForDay = fixedBlocks
-      .filter((b) => b.dayOfWeek === day.dayOfWeek)
+      .filter((b) => (b.recurring ? b.dayOfWeek === day.dayOfWeek : b.dateStr === day.dateStr))
       .filter((b) => !skipSet.has(`${b.id}|${day.dateStr}`));
     freeMinutes += computeFreeMinutes(day.wakeTime, blocksForDay, dayEnd);
   }

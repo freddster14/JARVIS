@@ -151,7 +151,7 @@ describe('computeWeekCapacity', () => {
   });
 
   it('excludes a fixed block on a date it has been skipped for', () => {
-    const fixedBlocks = [{ id: 'b1', dayOfWeek: 1, startTime: '09:00', endTime: '17:00' }];
+    const fixedBlocks = [{ id: 'b1', dayOfWeek: 1, startTime: '09:00', endTime: '17:00', recurring: true, dateStr: null }];
     const withoutSkip = computeWeekCapacity({ weekDays, fixedBlocks, skippedDates: [], tasks: [] });
     const withSkip = computeWeekCapacity({
       weekDays,
@@ -160,6 +160,16 @@ describe('computeWeekCapacity', () => {
       tasks: [],
     });
     expect(withSkip.freeMinutes).toBeGreaterThan(withoutSkip.freeMinutes);
+  });
+
+  it('applies a one-time block only on its own date, not every matching weekday', () => {
+    const oneTimeBlock = [
+      { id: 'b2', dayOfWeek: weekDays[2].dayOfWeek, startTime: '09:00', endTime: '17:00', recurring: false, dateStr: weekDays[2].dateStr },
+    ];
+    const result = computeWeekCapacity({ weekDays, fixedBlocks: oneTimeBlock, skippedDates: [], tasks: [] });
+    const baseline = computeWeekCapacity({ weekDays, fixedBlocks: [], skippedDates: [], tasks: [] });
+    // Only one day's worth of the block's duration should be subtracted, not all 7.
+    expect(baseline.freeMinutes - result.freeMinutes).toBe(480);
   });
 });
 

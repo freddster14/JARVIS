@@ -65,6 +65,10 @@ function buildSchedulingPrompt(params: {
       const skipNote = skippedDates?.length
         ? ` — SKIPPED this week on ${skippedDates.join(', ')}; treat the user as fully free of this block on those dates`
         : '';
+      if (!b.recurring && b.date) {
+        const dateStr = b.date.toISOString().slice(0, 10);
+        return `- ${b.name}: ONE-TIME on ${dateStr} only from ${b.startTime} to ${b.endTime} (does not recur on other weeks)${skipNote}`;
+      }
       return `- ${b.name}: Day ${b.dayOfWeek} (0=Sun) from ${b.startTime} to ${b.endTime}${skipNote}`;
     })
     .join('\n');

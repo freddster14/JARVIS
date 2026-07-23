@@ -55,7 +55,7 @@ export function TodayPanel() {
   const dayEntries: DayEntry[] = [
     ...todayItems.map((item): DayEntry => ({ kind: 'task', startTime: item.startTime, item })),
     ...(blocks ?? [])
-      .filter((b) => b.dayOfWeek === todayDayOfWeek)
+      .filter((b) => (b.recurring ? b.dayOfWeek === todayDayOfWeek : b.date === todayStr))
       .map((block): DayEntry => ({ kind: 'block', startTime: block.startTime, block })),
   ].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
@@ -140,7 +140,7 @@ export function TodayPanel() {
                     {formatTimeRange12h(block.startTime, block.endTime)}
                   </span>
                   <span className="flex-1 truncate text-left">{block.name}</span>
-                  <span className="text-xs text-gray-300 shrink-0">fixed</span>
+                  <span className="text-xs text-gray-300 shrink-0">{block.recurring ? 'fixed' : 'one-time'}</span>
                 </button>
               </li>
             );

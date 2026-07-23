@@ -20,7 +20,16 @@ const blockBody = [
   body('name')
     .trim().notEmpty().withMessage('Name is required')
     .isLength({ max: 100 }).withMessage('Name must be 100 characters or fewer'),
+  body('recurring').optional().isBoolean().withMessage('recurring must be a boolean'),
+  // A one-time block (recurring: false) is keyed by an exact date instead of a
+  // weekly dayOfWeek; require whichever one actually applies.
+  body('date')
+    .if((_, { req }) => req.body.recurring === false)
+    .notEmpty().withMessage('date is required for a one-time block')
+    .bail()
+    .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('date must be YYYY-MM-DD'),
   body('dayOfWeek')
+    .if((_, { req }) => req.body.recurring !== false)
     .isInt({ min: 0, max: 6 }).withMessage('dayOfWeek must be 0 (Sun) – 6 (Sat)'),
   timeField('startTime'),
   timeField('endTime'),
@@ -29,7 +38,6 @@ const blockBody = [
     if (start && endTime <= start) throw new Error('endTime must be after startTime');
     return true;
   }),
-  body('recurring').optional().isBoolean().withMessage('recurring must be a boolean'),
 ];
 
 const blockBodyPartial = [
@@ -40,6 +48,9 @@ const blockBodyPartial = [
   body('dayOfWeek')
     .optional()
     .isInt({ min: 0, max: 6 }).withMessage('dayOfWeek must be 0 (Sun) – 6 (Sat)'),
+  body('date')
+    .optional()
+    .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('date must be YYYY-MM-DD'),
   body('startTime').optional().matches(/^\d{2}:\d{2}$/).withMessage('startTime must be HH:MM format'),
   body('endTime').optional().matches(/^\d{2}:\d{2}$/).withMessage('endTime must be HH:MM format'),
   body('endTime').optional().custom((endTime, { req }) => {
