@@ -118,6 +118,31 @@ export interface TipRecheckResult {
   actions: TipAction[];
 }
 
+export type FocusPhase = 'work' | 'break' | 'long_break';
+export type FocusSessionStatus = 'running' | 'awaiting_ack' | 'needs_resolution' | 'completed' | 'cancelled';
+
+export interface FocusSession {
+  id: string;
+  scheduleItemId: string;
+  scheduleItem: {
+    id: string;
+    startTime: string;
+    endTime: string;
+    task: { name: string; durationMin: number };
+  };
+  startedAt: string;
+  plannedMinutes: number;
+  phase: FocusPhase;
+  phaseStartedAt: string;
+  phaseEndsAt: string;
+  cycleCount: number;
+  status: FocusSessionStatus;
+  nextNagAt: string | null;
+  lastNotifiedAt: string | null;
+  resolvedActualMinutes: number | null;
+  resolvedAt: string | null;
+}
+
 export interface HistoryWeek {
   weekStart: string;
   scheduled: number;
@@ -246,5 +271,20 @@ export const api = {
       request<TipRecheckResult>(`/api/tips/${id}/recheck`, { method: 'POST' }),
     delete: (id: string) =>
       request<void>(`/api/tips/${id}`, { method: 'DELETE' }),
+  },
+
+  focus: {
+    start: (scheduleItemId: string) =>
+      request<FocusSession>('/api/focus/start', { method: 'POST', body: JSON.stringify({ scheduleItemId }) }),
+    getByItem: (scheduleItemId: string) =>
+      request<FocusSession | null>(`/api/focus/by-item/${scheduleItemId}`),
+    needsResolution: () => request<FocusSession[]>('/api/focus/needs-resolution'),
+    advance: (id: string) => request<FocusSession>(`/api/focus/${id}/advance`, { method: 'POST' }),
+    snooze: (id: string) => request<FocusSession>(`/api/focus/${id}/snooze`, { method: 'POST' }),
+    stop: (id: string, actualMinutes?: number) =>
+      request<FocusSession>(`/api/focus/${id}/stop`, { method: 'POST', body: JSON.stringify({ actualMinutes }) }),
+    cancel: (id: string) => request<void>(`/api/focus/${id}`, { method: 'DELETE' }),
+    resolve: (id: string, data: { actualMinutes: number } | { confirmFullDuration: true }) =>
+      request<FocusSession>(`/api/focus/${id}/resolve`, { method: 'POST', body: JSON.stringify(data) }),
   },
 };

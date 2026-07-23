@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
-import { useSchedule, useUpdateItemStatus } from '../hooks/useSchedule.js';
+import { useSchedule } from '../hooks/useSchedule.js';
 import { useBlocks, useSkipBlock, useUnskipBlock } from '../hooks/useBlocks.js';
 import { RescheduleModal } from './RescheduleModal.js';
+import { TaskTimerModal } from './TaskTimerModal.js';
 import type { ScheduleItem, FixedBlock } from '../lib/api.js';
 import { formatTimeRange12h } from '../lib/time.js';
 
@@ -35,10 +36,10 @@ export function WeekCalendar({ currentDate }: Props) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const { data: items, isLoading } = useSchedule(currentDate);
   const { data: blocks } = useBlocks();
-  const { mutate: updateStatus } = useUpdateItemStatus();
   const { mutate: skipBlock } = useSkipBlock();
   const { mutate: unskipBlock } = useUnskipBlock();
   const [rescheduling, setRescheduling] = useState<ScheduleItem | null>(null);
+  const [detailItem, setDetailItem] = useState<ScheduleItem | null>(null);
   const [mobileDayIdx, setMobileDayIdx] = useState(() => todayIndexInWeek(weekStart));
 
   // Reset to today (or Mon) when the viewed week changes
@@ -65,11 +66,6 @@ export function WeekCalendar({ currentDate }: Props) {
     return [...taskEntries, ...blockEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
   }
 
-  function cycleStatus(item: ScheduleItem) {
-    const next = item.status === 'pending' ? 'done' : item.status === 'done' ? 'skipped' : 'pending';
-    updateStatus({ id: item.id, status: next });
-  }
-
   function ScheduleCard({ item }: { item: ScheduleItem }) {
     return (
       <div
@@ -85,8 +81,8 @@ export function WeekCalendar({ currentDate }: Props) {
         </button>
         <div
           className="cursor-pointer pr-4"
-          onClick={() => cycleStatus(item)}
-          title={`${formatTimeRange12h(item.startTime, item.endTime)} · tap to cycle status`}
+          onClick={() => setDetailItem(item)}
+          title={`${formatTimeRange12h(item.startTime, item.endTime)} · tap to open`}
         >
           <div className="font-medium truncate">{item.task.name}</div>
           <div className="opacity-70">{formatTimeRange12h(item.startTime, item.endTime)}</div>
@@ -223,6 +219,8 @@ export function WeekCalendar({ currentDate }: Props) {
           onClose={() => setRescheduling(null)}
         />
       )}
+
+      {detailItem && <TaskTimerModal item={detailItem} onClose={() => setDetailItem(null)} />}
     </>
   );
 }

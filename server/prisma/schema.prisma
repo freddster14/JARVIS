@@ -44,14 +44,42 @@ model FixedBlockException {
 }
 
 model ScheduleItem {
-  id         String    @id @default(cuid())
-  taskId     String
-  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  date       DateTime
-  startTime  String
-  endTime    String
-  status     String    @default("pending")
-  notifiedAt DateTime?
+  id            String         @id @default(cuid())
+  taskId        String
+  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  date          DateTime
+  startTime     String
+  endTime       String
+  status        String         @default("pending")
+  notifiedAt    DateTime?
+  focusSessions FocusSession[]
+}
+
+/// A Pomodoro-style focus session for one ScheduleItem occurrence. Server-persisted
+/// (rather than a client-side timer) so phase timing and reminder nagging keep working
+/// even while the app is closed or backgrounded.
+model FocusSession {
+  id             String       @id @default(cuid())
+  scheduleItemId String
+  scheduleItem   ScheduleItem @relation(fields: [scheduleItemId], references: [id], onDelete: Cascade)
+  startedAt      DateTime     @default(now())
+  /// Snapshot of task.durationMin at session start — the cap for this session's nagging.
+  plannedMinutes Int
+  /// 'work' | 'break' | 'long_break'
+  phase          String       @default("work")
+  phaseStartedAt DateTime     @default(now())
+  phaseEndsAt    DateTime
+  /// Completed work phases so far — decides 25/5 short break vs 25/15 long break.
+  cycleCount     Int          @default(0)
+  /// 'running' | 'awaiting_ack' | 'needs_resolution' | 'completed' | 'cancelled'
+  status         String       @default("running")
+  /// Next time a reminder push is due; null while running or once resolved/stopped.
+  nextNagAt      DateTime?
+  lastNotifiedAt DateTime?
+  resolvedActualMinutes Int?
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model PushSubscription {

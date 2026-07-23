@@ -3,6 +3,7 @@ import { format, addMinutes } from 'date-fns';
 import { prisma } from '../lib/prisma.js';
 import { sendPushToAll } from '../services/push.js';
 import { generateEncouragement, generateWeeklyReview } from '../services/claude.js';
+import { capReached, addMinutes as addTimerMinutes, NAG_INTERVAL_MIN, type Phase } from '../services/focusTimer.js';
 
 // ─── per-minute handlers ──────────────────────────────────────────────────────
 
@@ -92,6 +93,77 @@ async function checkFallbackWake(currentTime: string, today: Date): Promise<void
   });
 }
 
+// ─── focus timer reminders ───────────────────────────────────────────────────
+
+const PHASE_LABEL: Record<Phase, string> = { work: 'Work', break: 'Break', long_break: 'Long break' };
+
+function focusPhaseEndPayload(session: {
+  id: string;
+  phase: string;
+  scheduleItem: { task: { name: string } };
+}) {
+  const phase = session.phase as Phase;
+  const taskName = session.scheduleItem.task.name;
+  const body =
+    phase === 'work'
+      ? `Time's up on "${taskName}" — take a break, or tap "Still working on it".`
+      : `Break's over — ready to get back to "${taskName}"?`;
+
+  return {
+    title: `JARVIS — ${PHASE_LABEL[phase]} finished`,
+    body,
+    tag: `focus-${session.id}`,
+    data: { action: 'focus_phase_end', focusSessionId: session.id },
+    actions: [
+      { action: 'focus_advance', title: phase === 'work' ? 'Take a break' : 'Back to work' },
+      { action: 'focus_snooze', title: 'Still working on it' },
+    ],
+  };
+}
+
+async function checkFocusSessionReminders(): Promise<void> {
+  const now = new Date();
+  const sessions = await prisma.focusSession.findMany({
+    where: { status: { in: ['running', 'awaiting_ack'] } },
+    include: { scheduleItem: { include: { task: true } } },
+  });
+
+  for (const session of sessions) {
+    if (capReached(session.startedAt, session.plannedMinutes, now)) {
+      await prisma.focusSession.update({
+        where: { id: session.id },
+        data: { status: 'needs_resolution', nextNagAt: null },
+      });
+      await sendPushToAll({
+        title: 'JARVIS — Timer left running',
+        body: `Your Pomodoro for "${session.scheduleItem.task.name}" ran past its planned ${session.plannedMinutes} min. Open JARVIS to log your actual time.`,
+        tag: `focus-cap-${session.id}`,
+        data: { action: 'focus_needs_resolution', focusSessionId: session.id },
+      });
+      continue;
+    }
+
+    if (session.status === 'running') {
+      if (now < session.phaseEndsAt) continue;
+      await prisma.focusSession.update({
+        where: { id: session.id },
+        data: { status: 'awaiting_ack', nextNagAt: addTimerMinutes(now, NAG_INTERVAL_MIN), lastNotifiedAt: now },
+      });
+      await sendPushToAll(focusPhaseEndPayload(session));
+      continue;
+    }
+
+    // awaiting_ack — resend every NAG_INTERVAL_MIN unless "still working on it" pushed nextNagAt further out
+    if (session.nextNagAt && now >= session.nextNagAt) {
+      await prisma.focusSession.update({
+        where: { id: session.id },
+        data: { nextNagAt: addTimerMinutes(now, NAG_INTERVAL_MIN), lastNotifiedAt: now },
+      });
+      await sendPushToAll(focusPhaseEndPayload(session));
+    }
+  }
+}
+
 // ─── weekly summary (Sunday 23:30) ───────────────────────────────────────────
 
 async function runWeeklySummary(): Promise<void> {
@@ -177,6 +249,7 @@ export function startNotifierJob(): void {
       checkUpcomingTasks(),
       checkMorningPing(currentTime, today),
       checkFallbackWake(currentTime, today),
+      checkFocusSessionReminders(),
     ]);
   });
 

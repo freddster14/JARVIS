@@ -6,6 +6,8 @@ import { StatsBar } from '../components/StatsBar.js';
 import { useGenerateSchedule, useClearWeek } from '../hooks/useSchedule.js';
 import { useTasks } from '../hooks/useTasks.js';
 import { useApplyTip, useAcknowledgeTip } from '../hooks/useTips.js';
+import { useFocusNeedsResolution } from '../hooks/useFocus.js';
+import { FocusResolutionForm } from '../components/FocusResolutionForm.js';
 
 function formatHours(minutes: number): string {
   const hours = minutes / 60;
@@ -28,6 +30,7 @@ export function Dashboard() {
   const { mutate: acknowledgeTip, isPending: isAcknowledgingTip } = useAcknowledgeTip();
   const [tipHandled, setTipHandled] = useState(false);
   const [tipResultMsg, setTipResultMsg] = useState<string | null>(null);
+  const { data: staleFocusSessions } = useFocusNeedsResolution();
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekStartStr = format(weekStart, 'yyyy-MM-dd');
@@ -190,6 +193,16 @@ export function Dashboard() {
       {tipResultMsg && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-green-700 text-sm">
           ✓ {tipResultMsg}
+        </div>
+      )}
+
+      {staleFocusSessions && staleFocusSessions.length > 0 && (
+        <div className="space-y-3">
+          {staleFocusSessions.map((session) => (
+            <div key={session.id} className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-800 text-sm">
+              <FocusResolutionForm session={session} />
+            </div>
+          ))}
         </div>
       )}
 

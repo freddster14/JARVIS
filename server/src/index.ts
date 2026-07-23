@@ -10,6 +10,7 @@ import wakeRouter from './routes/wake.js';
 import aiRouter from './routes/ai.js';
 import statsRouter from './routes/stats.js';
 import tipsRouter from './routes/tips.js';
+import focusRouter from './routes/focus.js';
 import { initVapid } from './lib/vapid.js';
 import { startNotifierJob } from './jobs/notifier.js';
 
@@ -27,6 +28,7 @@ app.use('/api/wake', wakeRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/tips', tipsRouter);
+app.use('/api/focus', focusRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

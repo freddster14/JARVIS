@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useSchedule, useUpdateItemStatus } from '../hooks/useSchedule.js';
 import { useBlocks, useSkipBlock, useUnskipBlock } from '../hooks/useBlocks.js';
+import { TaskTimerModal } from './TaskTimerModal.js';
 import type { ScheduleItem, FixedBlock } from '../lib/api.js';
 import { formatTimeRange12h } from '../lib/time.js';
 
@@ -35,6 +36,7 @@ export function TodayPanel() {
   const { mutate: updateStatus } = useUpdateItemStatus();
   const { mutate: skipBlock } = useSkipBlock();
   const { mutate: unskipBlock } = useUnskipBlock();
+  const [timerItem, setTimerItem] = useState<ScheduleItem | null>(null);
 
   // Re-render every 30s so "time until" and current-task state stay fresh.
   const [, setTick] = useState(0);
@@ -95,6 +97,7 @@ export function TodayPanel() {
           minutesUntil={timeToMinutes(focus.startTime) - cur}
           onDone={() => updateStatus({ id: focus.id, status: 'done' })}
           onSkip={() => updateStatus({ id: focus.id, status: 'skipped' })}
+          onOpenTimer={() => setTimerItem(focus)}
         />
       ) : (
         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-5 text-center">
@@ -152,7 +155,8 @@ export function TodayPanel() {
           return (
             <li
               key={item.id}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+              onClick={() => setTimerItem(item)}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition cursor-pointer hover:bg-gray-50 ${
                 isFocus ? 'bg-indigo-50 ring-1 ring-indigo-200' : past ? 'opacity-50' : ''
               }`}
             >
@@ -175,6 +179,8 @@ export function TodayPanel() {
           );
         })}
       </ol>
+
+      {timerItem && <TaskTimerModal item={timerItem} onClose={() => setTimerItem(null)} />}
     </div>
   );
 }
@@ -185,12 +191,14 @@ function FocusCard({
   minutesUntil,
   onDone,
   onSkip,
+  onOpenTimer,
 }: {
   item: ScheduleItem;
   isCurrent: boolean;
   minutesUntil: number;
   onDone: () => void;
   onSkip: () => void;
+  onOpenTimer: () => void;
 }) {
   return (
     <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-xl p-5 shadow">
@@ -208,14 +216,22 @@ function FocusCard({
       </div>
       <div className="flex gap-2 mt-4">
         <button
-          onClick={onDone}
+          onClick={onOpenTimer}
           className="flex-1 bg-white text-indigo-700 rounded-lg py-2 text-sm font-medium hover:bg-indigo-50 transition"
         >
-          ✓ Mark done
+          ▶ Start timer
+        </button>
+        <button
+          onClick={onDone}
+          className="px-4 bg-indigo-500/50 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-500/70 transition"
+          title="Mark done"
+        >
+          ✓
         </button>
         <button
           onClick={onSkip}
           className="px-4 bg-indigo-500/50 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-500/70 transition"
+          title="Skip"
         >
           Skip
         </button>

@@ -54,6 +54,29 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
+  if (data.focusSessionId && action === 'focus_snooze') {
+    event.waitUntil(fetch(`/api/focus/${data.focusSessionId}/snooze`, { method: 'POST' }));
+    return;
+  }
+
+  if (data.focusSessionId && action === 'focus_advance') {
+    event.waitUntil(fetch(`/api/focus/${data.focusSessionId}/advance`, { method: 'POST' }));
+    return;
+  }
+
+  if (data.action === 'focus_needs_resolution' || data.action === 'focus_phase_end') {
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        if (clientList.length > 0) {
+          clientList[0].focus();
+        } else {
+          clients.openWindow('/');
+        }
+      })
+    );
+    return;
+  }
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       if (clientList.length > 0) {
