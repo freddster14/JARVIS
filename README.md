@@ -30,7 +30,7 @@ push reminders and an honest weekly review.
 | Layer    | Tech                                                        |
 | -------- | ---------------------------------------------------------- |
 | Client   | React 18, Vite, TypeScript, Tailwind, TanStack Query       |
-| Server   | Express, TypeScript, Prisma (SQLite), node-cron            |
+| Server   | Express, TypeScript, Prisma (PostgreSQL / Neon), node-cron |
 | AI       | Anthropic Claude (`@anthropic-ai/sdk`, tool-use)           |
 | Push     | Web Push (VAPID) + service worker                          |
 
@@ -117,6 +117,8 @@ This starts the API on `http://localhost:3001` and the client on
 
 ## Notes
 
-- The database is SQLite (`server/prisma/dev.db`) for zero-config local dev.
+- The database is PostgreSQL, hosted on [Neon](https://neon.tech). Use a
+  pooled connection string for `DATABASE_URL` and an unpooled one for
+  `DIRECT_URL` (used only by `prisma migrate`).
 - Push notifications require HTTPS in production (localhost is exempt) and a
   browser that supports the Push API.
