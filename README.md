@@ -74,6 +74,23 @@ npm run dev
 This starts the API on `http://localhost:3001` and the client on
 `http://localhost:5173` concurrently.
 
+## Deploy
+
+JARVIS ships as a single Docker image (`Dockerfile`) — Express serves both
+the API and the built React client, and runs `prisma migrate deploy` on
+startup. It needs an always-on host (the cron job that fires reminders runs
+every minute, so serverless/scale-to-zero platforms don't fit) and a
+PostgreSQL database — [Neon](https://neon.tech) works well and is what this
+project is set up for.
+
+The included `render.yaml` is a [Render Blueprint](https://render.com/docs/blueprint-spec):
+in the Render dashboard, **New +** → **Blueprint**, connect this repo, and
+Render will read it and prompt you for the secret env vars (`ANTHROPIC_API_KEY`,
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL`, `DATABASE_URL`,
+`DIRECT_URL`, `CLIENT_URL`). Use the **Starter** plan, not Free — Render's
+free tier spins down after 15 minutes idle, which would kill the cron job.
+No persistent disk is needed since the database lives in Neon.
+
 ## Useful scripts
 
 | Command                                       | What it does                          |
