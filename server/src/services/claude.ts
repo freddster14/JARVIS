@@ -112,7 +112,6 @@ export async function generateWeeklySchedule(params: {
     max_tokens: 8000,
     thinking: { type: 'enabled', budget_tokens: 5000 },
     tools: [scheduleOutputTool],
-    tool_choice: { type: 'any' },
     messages: [{ role: 'user', content: buildSchedulingPrompt(params) }],
   });
 
