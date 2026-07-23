@@ -110,7 +110,8 @@ export async function generateWeeklySchedule(params: {
   const response = await client.messages.create({
     model: 'claude-opus-4-8',
     max_tokens: 8000,
-    thinking: { type: 'enabled', budget_tokens: 5000 },
+    thinking: { type: 'adaptive' },
+    output_config: { effort: 'high' },
     tools: [scheduleOutputTool],
     messages: [{ role: 'user', content: buildSchedulingPrompt(params) }],
   });
